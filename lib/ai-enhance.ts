@@ -1,5 +1,29 @@
 import type { AnalysisInput, AnalysisResult, RedFlag, MissingClause } from "./analyzer";
 
+// ============================================================
+// AI Analysis Result Interface
+// ============================================================
+
+export interface AIAnalysisResult {
+  aiInsights: string;
+  extraRedFlags: RedFlag[];
+  extraGreenFlags: Array<{ clause: string; benefit: string }>;
+  extraMissing: MissingClause[];
+  detectedInfo: {
+    contractType: string;
+    totalPrice: number | null;
+    hourlyRate: number | null;
+    currency: string;
+    paymentTerms: string;
+    clientName: string;
+    contractorName: string;
+    jurisdiction: string;
+  };
+  contractQuality: string;
+  suggestedScore: number;
+  negotiationPriorities: string[];
+}
+
 // Country-specific legal context
 const COUNTRY_CONTEXTS: Record<string, {
   name: string;
@@ -143,11 +167,28 @@ CRITICAL RULES — READ CAREFULLY:
   * "Contractor retains pre-existing IP" is standard and good
   * Reasonable confidentiality (2-5 years) is standard
   * Mutual indemnification is fair and balanced
-- Do NOT duplicate findings already detected by the automated system (listed in the user message)
 - ONLY report findings you can support with specific text from the contract
 - For each finding, ALWAYS include the exact quote from the contract text
 - Focus on subtle risks that simple keyword matching would miss: implied obligations, ambiguous scope boundaries, hidden cost triggers, jurisdiction-specific issues
-- If the contract is genuinely good and well-drafted, say so — do not invent problems`;
+- If the contract is genuinely good and well-drafted, say so — do not invent problems
+
+EXTRACTION REQUIREMENTS:
+- Extract the contract type (fixed-price, hourly, retainer, milestone, day-rate, per-unit, revenue-share)
+- Extract the total price or hourly rate if mentioned
+- Extract the currency
+- Extract payment terms (Net-30, Net-60, milestone-based, upon completion, etc.)
+- Extract party names (client and contractor)
+- Detect the likely jurisdiction from governing law or party addresses
+- Provide a suggested deal score from 0-100 based on your assessment
+
+SCORING GUIDELINES:
+- 80-100: Excellent contract with strong freelancer protections (deposit, kill fee, capped revisions, IP on payment, mutual indemnification)
+- 60-79: Good contract with minor gaps (missing some protections but no critical red flags)
+- 40-59: Fair contract that needs negotiation (some red flags or missing important clauses)
+- 20-39: Poor contract with significant risks (multiple high-severity flags, missing critical protections)
+- 0-19: Dangerous contract that should not be signed as-is (critical flags like unlimited revisions, no payment protection, one-sided terms)
+
+A standard professional contract from a platform like Deel, Toptal, or Upwork should score 50-65 — these are fair but favor the client slightly, which is normal for platform contracts.`;
 
 // ============================================================
 // JSON Schema for Structured Output (100% guaranteed valid JSON)
@@ -156,23 +197,50 @@ CRITICAL RULES — READ CAREFULLY:
 const ANALYSIS_SCHEMA = {
   type: "object" as const,
   properties: {
-    additionalRedFlags: {
+    detectedInfo: {
+      type: "object" as const,
+      properties: {
+        contractType: { type: "string" as const },
+        totalPrice: { type: ["number", "null"] as const },
+        hourlyRate: { type: ["number", "null"] as const },
+        currency: { type: "string" as const },
+        paymentTerms: { type: "string" as const },
+        clientName: { type: "string" as const },
+        contractorName: { type: "string" as const },
+        jurisdiction: { type: "string" as const },
+      },
+      required: ["contractType", "currency", "paymentTerms", "clientName", "contractorName", "jurisdiction"] as const,
+      additionalProperties: false,
+    },
+    allRedFlags: {
       type: "array" as const,
       items: {
         type: "object" as const,
         properties: {
           severity: { type: "string" as const, enum: ["critical", "high", "medium", "low"] },
-          clause: { type: "string" as const, description: "Exact quote from contract text" },
-          issue: { type: "string" as const, description: "What is wrong, in plain English" },
-          impact: { type: "string" as const, description: "Financial or legal impact on freelancer" },
-          hourlyRateImpact: { type: "number" as const, description: "Estimated dollar per hour reduction, 0 if not quantifiable" },
-          suggestion: { type: "string" as const, description: "Counter-proposal language the freelancer can send" },
+          clause: { type: "string" as const },
+          issue: { type: "string" as const },
+          impact: { type: "string" as const },
+          hourlyRateImpact: { type: "number" as const },
+          suggestion: { type: "string" as const },
         },
         required: ["severity", "clause", "issue", "impact", "hourlyRateImpact", "suggestion"] as const,
         additionalProperties: false,
       },
     },
-    additionalMissingClauses: {
+    allGreenFlags: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          clause: { type: "string" as const },
+          benefit: { type: "string" as const },
+        },
+        required: ["clause", "benefit"] as const,
+        additionalProperties: false,
+      },
+    },
+    allMissingClauses: {
       type: "array" as const,
       items: {
         type: "object" as const,
@@ -186,52 +254,41 @@ const ANALYSIS_SCHEMA = {
         additionalProperties: false,
       },
     },
-    overallAssessment: { type: "string" as const, description: "2-3 paragraph plain-English analysis from a freelancer perspective" },
+    overallAssessment: { type: "string" as const },
     negotiationPriorities: {
       type: "array" as const,
       items: { type: "string" as const },
-      description: "Top 3 things to negotiate first, in priority order",
     },
     contractQuality: {
       type: "string" as const,
       enum: ["excellent", "good", "fair", "poor", "dangerous"],
-      description: "Overall contract quality from the freelancer perspective",
+    },
+    suggestedScore: {
+      type: "number" as const,
+      description: "Suggested deal score from 0-100",
     },
   },
-  required: ["additionalRedFlags", "additionalMissingClauses", "overallAssessment", "negotiationPriorities", "contractQuality"] as const,
+  required: ["detectedInfo", "allRedFlags", "allGreenFlags", "allMissingClauses", "overallAssessment", "negotiationPriorities", "contractQuality", "suggestedScore"] as const,
   additionalProperties: false,
 };
 
 // ============================================================
-// Build User Prompt (contract-specific, includes regex findings for dedup)
+// Build User Prompt — Full contract analysis (AI-first)
 // ============================================================
 
-function buildUserPrompt(input: AnalysisInput, baseResult: AnalysisResult): string {
-  return `Analyze this freelance contract. The automated system already found the issues listed below — do NOT repeat them. Only find ADDITIONAL issues the automated system missed.
+function buildUserPrompt(input: AnalysisInput, _baseResult: AnalysisResult): string {
+  return `Analyze this freelance/contractor agreement completely. Extract all information, identify all risks, and provide a comprehensive assessment.
 
 CONTRACT TEXT:
 ---
 ${input.contractText}
 ---
 
-PROJECT CONTEXT:
-- Scope: ${input.projectScope || "Not specified"}
-- Quoted Price: ${input.currency} ${input.quotedPrice || "Not specified"}
-- Estimated Hours: ${input.estimatedHours || "Not specified"}
-- Currency: ${input.currency}
-- Effective Hourly Rate: ${input.currency} ${baseResult.effectiveHourlyRate.toFixed(2)} (nominal: ${baseResult.nominalHourlyRate.toFixed(2)}, ${baseResult.rateReduction.toFixed(1)}% reduction)
+${input.projectScope ? `PROJECT CONTEXT: ${input.projectScope}` : ''}
+${input.quotedPrice ? `QUOTED PRICE: ${input.currency || 'USD'} ${input.quotedPrice}` : ''}
+${input.estimatedHours ? `ESTIMATED HOURS: ${input.estimatedHours}` : ''}
 
-ALREADY DETECTED BY AUTOMATED SYSTEM (do NOT duplicate these):
-Red Flags:
-${baseResult.redFlags.map(f => `- [${f.severity}] ${f.issue}`).join("\n") || "- None detected"}
-
-Missing Clauses:
-${baseResult.missingClauses.map(m => `- [${m.importance}] ${m.name}`).join("\n") || "- None detected"}
-
-Green Flags (positive terms found):
-${baseResult.greenFlags.map(g => `- ${g.benefit}`).join("\n") || "- None detected"}
-
-Find ONLY additional issues, missing protections, and subtle risks that the automated keyword-based system could not detect. Focus on: implied obligations, ambiguous language, hidden cost triggers, jurisdiction-specific concerns, and clauses that interact with each other to create risk.`;
+Provide your complete analysis including all red flags, green flags, missing protections, detected contract information, and a suggested score.`;
 }
 
 // ============================================================
@@ -298,7 +355,7 @@ async function callAnthropicFallback(
       model: "claude-sonnet-4-20250514",
       max_tokens: 4096,
       system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt + "\n\nRespond with ONLY valid JSON matching this structure: {additionalRedFlags: [...], additionalMissingClauses: [...], overallAssessment: string, negotiationPriorities: string[], contractQuality: string}" }],
+      messages: [{ role: "user", content: userPrompt + "\n\nRespond with ONLY valid JSON matching this structure: {detectedInfo: {contractType, totalPrice, hourlyRate, currency, paymentTerms, clientName, contractorName, jurisdiction}, allRedFlags: [{severity, clause, issue, impact, hourlyRateImpact, suggestion}], allGreenFlags: [{clause, benefit}], allMissingClauses: [{name, importance, description, suggestedLanguage}], overallAssessment: string, negotiationPriorities: string[], contractQuality: string, suggestedScore: number}" }],
     }),
   });
 
@@ -318,16 +375,15 @@ async function callAnthropicFallback(
 // Transform AI Response to Our Format
 // ============================================================
 
-function transformAIResponse(parsed: Record<string, unknown>): {
-  aiInsights: string;
-  extraRedFlags: RedFlag[];
-  extraMissing: MissingClause[];
-} {
-  const flags = (parsed.additionalRedFlags as Array<Record<string, unknown>>) || [];
-  const missing = (parsed.additionalMissingClauses as Array<Record<string, unknown>>) || [];
+function transformAIResponse(parsed: Record<string, unknown>): AIAnalysisResult {
+  const flags = (parsed.allRedFlags as Array<Record<string, unknown>>) || [];
+  const greenFlags = (parsed.allGreenFlags as Array<Record<string, unknown>>) || [];
+  const missing = (parsed.allMissingClauses as Array<Record<string, unknown>>) || [];
   const assessment = (parsed.overallAssessment as string) || "";
   const priorities = (parsed.negotiationPriorities as string[]) || [];
   const quality = (parsed.contractQuality as string) || "";
+  const suggestedScore = Number(parsed.suggestedScore) || 50;
+  const detectedInfoRaw = (parsed.detectedInfo as Record<string, unknown>) || {};
 
   // Build insights from assessment + priorities + quality
   let insights = assessment;
@@ -349,24 +405,41 @@ function transformAIResponse(parsed: Record<string, unknown>): {
       hourlyRateImpact: Number(f.hourlyRateImpact) || 0,
       suggestion: (f.suggestion as string) || "",
     })) as RedFlag[],
+    extraGreenFlags: greenFlags.map((g) => ({
+      clause: (g.clause as string) || "",
+      benefit: (g.benefit as string) || "",
+    })),
     extraMissing: missing.map((m) => ({
       name: (m.name as string) || "",
       importance: (m.importance as string) || "important",
       description: `🤖 AI: ${m.description || ""}`,
       suggestedLanguage: (m.suggestedLanguage as string) || "",
     })) as MissingClause[],
+    detectedInfo: {
+      contractType: (detectedInfoRaw.contractType as string) || "unknown",
+      totalPrice: detectedInfoRaw.totalPrice != null ? Number(detectedInfoRaw.totalPrice) : null,
+      hourlyRate: detectedInfoRaw.hourlyRate != null ? Number(detectedInfoRaw.hourlyRate) : null,
+      currency: (detectedInfoRaw.currency as string) || "USD",
+      paymentTerms: (detectedInfoRaw.paymentTerms as string) || "Not specified",
+      clientName: (detectedInfoRaw.clientName as string) || "Unknown",
+      contractorName: (detectedInfoRaw.contractorName as string) || "Unknown",
+      jurisdiction: (detectedInfoRaw.jurisdiction as string) || "Unknown",
+    },
+    contractQuality: quality || "fair",
+    suggestedScore,
+    negotiationPriorities: priorities,
   };
 }
 
 // ============================================================
-// Main Entry Point — AI-Enhanced Analysis
+// Main Entry Point — AI-First Full Contract Analysis
 // ============================================================
 
 export async function enhanceWithAI(
   input: AnalysisInput,
   baseResult: AnalysisResult,
   manualApiKey?: string
-): Promise<{ aiInsights: string; extraRedFlags: RedFlag[]; extraMissing: MissingClause[] }> {
+): Promise<AIAnalysisResult> {
   const userPrompt = buildUserPrompt(input, baseResult);
 
   // Determine which provider + key to use

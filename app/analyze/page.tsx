@@ -13,12 +13,10 @@ import {
   Copy,
   Check,
   Loader2,
-  ChevronDown,
   Sparkles,
   RefreshCw,
   Share2,
   FileDown,
-  CheckCircle,
   CheckCircle2,
   XCircle,
   AlertCircle,
@@ -48,7 +46,7 @@ import { getSettings } from '@/lib/settings';
 import type { AnalysisResult } from '@/lib/analyzer';
 import { simpleMarkdownToHtml } from '@/lib/markdown';
 import { extractMetadataFromText, type ContractMetadata } from '@/lib/extract-metadata';
-import { CURRENCIES, getScoreColor, getRecommendationConfig, getCurrencySymbol } from '@/lib/constants';
+import { CURRENCIES, getScoreColor, getRecommendationConfig } from '@/lib/constants';
 // export-pdf is imported dynamically to avoid SSR issues with jspdf
 
 /* ------------------------------------------------------------------ */
@@ -320,13 +318,7 @@ export default function AnalyzePage() {
 
   /* ---------- form state ---------- */
   const [contractText, setContractText] = useState('');
-  const [projectScope, setProjectScope] = useState('');
-  const [quotedPrice, setQuotedPrice] = useState('');
-  const [estimatedHours, setEstimatedHours] = useState('');
   const [currency, setCurrency] = useState('USD');
-  const [country, setCountry] = useState('');
-  const [claudeApiKey, setClaudeApiKey] = useState('');
-  const [showAiSettings, setShowAiSettings] = useState(false);
 
   /* ---------- file upload state ---------- */
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -347,7 +339,6 @@ export default function AnalyzePage() {
 
   /* ---------- form validation state (FIX 2) ---------- */
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showOptional, setShowOptional] = useState(false);
 
   /* ---------- loading timer state ---------- */
   const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
@@ -377,13 +368,12 @@ export default function AnalyzePage() {
   const [simScopeCreep, setSimScopeCreep] = useState(0);
 
   const resultsRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   const currencySymbol = CURRENCIES.find((c) => c.value === currency)?.symbol ?? '$';
 
   /* ---------- "What If" simulator computed values ---------- */
-  const baseHours = parseFloat(estimatedHours) || 80;
-  const basePrice = parseFloat(quotedPrice) || (result?.nominalHourlyRate || 0) * baseHours;
+  const baseHours = 80;
+  const basePrice = (result?.nominalHourlyRate || 0) * baseHours;
   const simTotalHours = baseHours + (simRevisions * baseHours * 0.15) + simScopeCreep;
   const simFloatCost = (simPayDelay / 365) * 0.1 * basePrice; // 10% annual cost of capital
   const simEffectiveRate = simTotalHours > 0 ? Math.max(0, (basePrice - simFloatCost) / simTotalHours) : 0;
@@ -410,9 +400,7 @@ export default function AnalyzePage() {
 
     // Load defaults from settings
     const settings = getSettings();
-    if (settings.savedApiKey) setClaudeApiKey(settings.savedApiKey);
     if (settings.defaultCurrency) setCurrency(settings.defaultCurrency);
-    if (settings.defaultCountry) setCountry(settings.defaultCountry);
   }, []);
 
   /* ---------- elapsed time counter for loading ---------- */
@@ -444,36 +432,15 @@ export default function AnalyzePage() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        if (!loading && !result) {
-          formRef.current?.requestSubmit();
+        if (!loading && !result && contractText.trim()) {
+          handleAnalyze(contractText);
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, result]);
-
-  /* ---------- form validation (FIX 2) ---------- */
-  function validateForm(): boolean {
-    const newErrors: Record<string, string> = {};
-
-    if (!contractText.trim()) {
-      newErrors.contractText = 'Contract text is required';
-    }
-    if (!projectScope.trim()) {
-      newErrors.projectScope = 'Please describe your project';
-    }
-    // Price and hours are now optional — only reject negative values
-    if (quotedPrice && parseFloat(quotedPrice) < 0) {
-      newErrors.quotedPrice = 'Price cannot be negative';
-    }
-    if (estimatedHours && parseFloat(estimatedHours) < 0) {
-      newErrors.estimatedHours = 'Hours cannot be negative';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, result, contractText]);
 
   /* ---------- clear individual error on typing (FIX 2) ---------- */
   function clearError(field: string) {
@@ -487,7 +454,7 @@ export default function AnalyzePage() {
 
   /* ---------- fill sample contract ---------- */
   function fillSample() {
-    setContractText(`FREELANCE SERVICE AGREEMENT
+    const sampleText = `FREELANCE SERVICE AGREEMENT
 
 This Agreement is entered into between Client Corp ("Client") and Freelancer ("Contractor").
 
@@ -516,24 +483,23 @@ The Contractor agrees not to work with any competing businesses for a period of 
 The Contractor shall be fully liable for any and all damages, losses, or claims arising from the work performed under this agreement.
 
 9. CONFIDENTIALITY
-Both parties agree to maintain confidentiality of proprietary information shared during the project.`);
-    setProjectScope('Website redesign and development');
-    setQuotedPrice('6000');
-    setEstimatedHours('80');
+Both parties agree to maintain confidentiality of proprietary information shared during the project.`;
+    setContractText(sampleText);
     setCurrency('USD');
-    setShowOptional(true);
     setErrors({});
+    // Auto-submit the sample
+    handleAnalyze(sampleText);
   }
 
-  /* ---------- loading timer helper ---------- */
+  /* ---------- auto-analyze (zero-form) ---------- */
+  async function handleAnalyze(text: string) {
+    if (!text.trim()) {
+      setErrors({ contractText: 'Contract text is required' });
+      return;
+    }
 
-  /* ---------- submit ---------- */
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
     setError('');
-
-    if (!validateForm()) return;
-
+    setErrors({});
     setLoading(true);
     setAnalysisStartTime(Date.now());
     setElapsedSeconds(0);
@@ -543,13 +509,8 @@ Both parties agree to maintain confidentiality of proprietary information shared
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contractText,
-          projectScope,
-          quotedPrice: quotedPrice ? parseFloat(quotedPrice) : undefined,
-          estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
+          contractText: text,
           currency,
-          country: country || undefined,
-          claudeApiKey: claudeApiKey || undefined,
         }),
       });
 
@@ -587,7 +548,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
         overallScore: data.overallScore,
         recommendation: data.recommendation,
         summary: data.summary,
-        contractSnippet: contractText.slice(0, 80).replace(/\s+/g, ' ').trim(),
+        contractSnippet: text.slice(0, 80).replace(/\s+/g, ' ').trim(),
         currency,
         nominalHourlyRate: data.nominalHourlyRate,
         effectiveHourlyRate: data.effectiveHourlyRate,
@@ -601,7 +562,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: crypto.randomUUID(),
-          contractSnippet: contractText.slice(0, 200),
+          contractSnippet: text.slice(0, 200),
           overallScore: data.overallScore,
           recommendation: data.recommendation,
           nominalRate: data.nominalHourlyRate,
@@ -609,7 +570,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
           rateReduction: data.rateReduction,
           currency,
           contractType: data.contractType,
-          fullResult: JSON.stringify({ ...data, contractText }),
+          fullResult: JSON.stringify({ ...data, contractText: text }),
         }),
       }).catch(() => {}); // Don't block on server save failure
 
@@ -726,17 +687,14 @@ Both parties agree to maintain confidentiality of proprietary information shared
       setUploadMode('file');
       setUploadedFile({ name: file.name, pages: data.pages, size: formatFileSize(file.size) });
 
-      // Auto-fill detected fields
-      if (metadata.detectedScope) setProjectScope(metadata.detectedScope);
-      if (metadata.detectedPrice) setQuotedPrice(String(metadata.detectedPrice));
+      // Set currency if detected
       if (metadata.detectedCurrency) setCurrency(metadata.detectedCurrency);
-      if (metadata.estimatedHours) setEstimatedHours(String(metadata.estimatedHours));
-
-      // Expand optional section if price/hours were detected
-      if (metadata.detectedPrice || metadata.estimatedHours) setShowOptional(true);
 
       // Show what was auto-detected
       setAutoDetected(metadata);
+
+      // AUTO-SUBMIT: analyze immediately after file upload
+      handleAnalyze(data.text);
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Failed to parse file.');
     } finally {
@@ -877,9 +835,9 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
         <AnimatePresence mode="wait">
           {/* ====================================================== */}
-          {/*  STATE 1 — INPUT FORM                                   */}
+          {/*  STATE 1 — ZERO-FORM INPUT                               */}
           {/* ====================================================== */}
-          {!result && (
+          {!result && !loading && (
             <motion.div
               key="form"
               initial={{ opacity: 0, y: 20 }}
@@ -890,39 +848,19 @@ Both parties agree to maintain confidentiality of proprietary information shared
               {/* Page header */}
               <div className="mb-10">
                 <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-                  Analyze Your Deal
+                  Analyze Your Contract
                 </h1>
                 <p className="mt-2 max-w-2xl text-gray-400">
-                  Paste your contract and deal details below. Our AI will uncover hidden costs, red flags, and scope-creep risks so you know your{' '}
-                  <span className="text-gray-600">real</span> hourly rate.
+                  Upload a PDF or paste your contract text. We&apos;ll analyze everything automatically.
                 </p>
               </div>
 
               {/* Onboarding banner for first-time users */}
               <OnboardingBanner />
 
-              {/* Try with a sample contract */}
-              <div className="mb-6">
-                <button
-                  type="button"
-                  onClick={fillSample}
-                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 transition-all hover:bg-indigo-100 hover:border-indigo-300"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Try with a sample contract
-                </button>
-              </div>
-
-              <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
-                {/* ---- Section A: Contract Text ---- */}
+              <div className="space-y-8">
+                {/* ---- Upload Zone ---- */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-                  <label htmlFor="contract" className="mb-1 block text-sm font-semibold text-gray-900">
-                    Your Contract
-                  </label>
-                  <p className="mb-4 text-xs text-gray-400">
-                    Upload a file or paste the full contract text. Your data is processed securely and never stored.
-                  </p>
-
                   {/* Upload error */}
                   {uploadError && (
                     <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
@@ -930,300 +868,94 @@ Both parties agree to maintain confidentiality of proprietary information shared
                     </div>
                   )}
 
-                  {uploadMode === 'file' && uploadedFile ? (
-                    /* File confirmation card */
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="rounded-xl bg-emerald-100 p-2.5">
-                            <FileText className="h-5 w-5 text-emerald-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{uploadedFile.name}</p>
-                            <p className="text-xs text-gray-400">{uploadedFile.pages} page{uploadedFile.pages !== 1 ? 's' : ''} &middot; {uploadedFile.size} &middot; Parsed successfully</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-5 w-5 text-emerald-500" />
-                          <button
-                            type="button"
-                            onClick={() => { setUploadMode('paste'); setUploadedFile(null); setContractText(''); }}
-                            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                      {autoDetected && (
-                        <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-                          <p className="text-xs font-medium text-indigo-600 mb-2">Auto-detected from your contract:</p>
-                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                            {autoDetected.detectedPrice && <div>Price: {autoDetected.detectedCurrency || '$'}{autoDetected.detectedPrice.toLocaleString()}</div>}
-                            {autoDetected.contractType && <div>Type: {autoDetected.contractType}</div>}
-                            {autoDetected.estimatedHours && <div>Est. hours: {autoDetected.estimatedHours}</div>}
-                            {autoDetected.detectedPaymentTerms && <div>Payment: {autoDetected.detectedPaymentTerms}</div>}
-                            {autoDetected.detectedParties?.client && <div>Client: {autoDetected.detectedParties.client}</div>}
-                            {autoDetected.detectedScope && <div className="col-span-2">Scope: {autoDetected.detectedScope.substring(0, 100)}...</div>}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Paste / upload mode */
-                    <>
-                      {/* File Upload Zone */}
-                      <div
-                        onDrop={handleDrop}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 transition-all ${
-                          isDragging
-                            ? 'border-indigo-500 bg-indigo-50'
-                            : 'border-gray-200 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/30'
-                        }`}
-                      >
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".pdf,.txt,.docx,.doc,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleFileUpload(file);
-                            e.target.value = '';
-                          }}
-                        />
+                  {/* File Upload Zone */}
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 transition-all ${
+                      isDragging
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/30'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.txt,.docx,.doc,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(file);
+                        e.target.value = '';
+                      }}
+                    />
 
-                        {uploadLoading ? (
-                          <div className="flex flex-col items-center gap-2 w-full px-4">
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
-                              <span className="text-sm text-indigo-600">Parsing file...</span>
-                            </div>
-                            {uploadProgress > 0 && uploadProgress < 100 && (
-                              <div className="mt-2 h-1.5 w-full max-w-xs rounded-full bg-gray-100 overflow-hidden">
-                                <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${uploadProgress}%` }} />
-                              </div>
-                            )}
+                    {uploadLoading ? (
+                      <div className="flex flex-col items-center gap-2 w-full px-4">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+                          <span className="text-sm text-indigo-600">Parsing file...</span>
+                        </div>
+                        {uploadProgress > 0 && uploadProgress < 100 && (
+                          <div className="mt-2 h-1.5 w-full max-w-xs rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${uploadProgress}%` }} />
                           </div>
-                        ) : (
-                          <>
-                            <Upload className={`h-8 w-8 ${isDragging ? 'text-indigo-500' : 'text-gray-400'}`} />
-                            <div className="text-center">
-                              <p className={`text-sm font-medium ${isDragging ? 'text-indigo-600' : 'text-gray-600'}`}>
-                                Upload PDF, DOCX, or TXT
-                              </p>
-                              <p className="mt-1 text-xs text-gray-400">
-                                Drag and drop or click to browse (max 5MB)
-                              </p>
-                            </div>
-                          </>
                         )}
                       </div>
+                    ) : (
+                      <>
+                        <Upload className={`h-10 w-10 ${isDragging ? 'text-indigo-500' : 'text-gray-400'}`} />
+                        <div className="text-center">
+                          <p className={`text-base font-medium ${isDragging ? 'text-indigo-600' : 'text-gray-600'}`}>
+                            Upload PDF, DOCX, or TXT
+                          </p>
+                          <p className="mt-1 text-sm text-gray-400">
+                            Drag and drop or click to browse (max 5MB)
+                          </p>
+                          <p className="mt-2 text-xs text-indigo-500 font-medium">
+                            Analysis starts automatically after upload
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-                      <div className="relative my-4 flex items-center">
-                        <div className="flex-grow border-t border-gray-200" />
-                        <span className="mx-4 text-xs text-gray-400">or paste your contract text</span>
-                        <div className="flex-grow border-t border-gray-200" />
-                      </div>
+                  <div className="relative my-6 flex items-center">
+                    <div className="flex-grow border-t border-gray-200" />
+                    <span className="mx-4 text-xs text-gray-400">or paste your contract text</span>
+                    <div className="flex-grow border-t border-gray-200" />
+                  </div>
 
-                      <textarea
-                        id="contract"
-                        rows={8}
-                        value={contractText}
-                        onChange={(e) => { setContractText(e.target.value); clearError('contractText'); }}
-                        placeholder="Paste your contract, agreement, or terms here..."
-                        className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.contractText ? 'border-red-400' : 'border-gray-200'}`}
-                      />
-                    </>
-                  )}
+                  <textarea
+                    id="contract"
+                    rows={8}
+                    value={contractText}
+                    onChange={(e) => { setContractText(e.target.value); clearError('contractText'); }}
+                    placeholder="Paste your contract, agreement, or terms here..."
+                    className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.contractText ? 'border-red-400' : 'border-gray-200'}`}
+                  />
                   {errors.contractText && (
                     <p className="mt-1.5 text-xs text-red-600">{errors.contractText}</p>
                   )}
-                </div>
 
-                {/* ---- Section B: Deal Details ---- */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-                  <h2 className="mb-1 text-sm font-semibold text-gray-900">Your Deal Details</h2>
-                  <p className="mb-6 text-xs text-gray-400">Tell us about the project so we can calculate your real rate.</p>
-
-                  {/* Always visible: Project Scope */}
-                  <div>
-                    <label htmlFor="scope" className="mb-1.5 block text-xs font-medium text-gray-600">
-                      Project Scope
-                    </label>
-                    <textarea
-                      id="scope"
-                      rows={2}
-                      value={projectScope}
-                      onChange={(e) => { setProjectScope(e.target.value); clearError('projectScope'); }}
-                      placeholder="Briefly describe the work — e.g., 'Design and build a 5-page React website with CMS integration'"
-                      className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.projectScope ? 'border-red-400' : 'border-gray-200'}`}
-                    />
-                    {errors.projectScope && (
-                      <p className="mt-1.5 text-xs text-red-600">{errors.projectScope}</p>
-                    )}
-                  </div>
-
-                  {/* Collapsible: Optional details */}
+                  {/* Analyze button for paste mode */}
                   <button
                     type="button"
-                    onClick={() => setShowOptional(!showOptional)}
-                    className="mt-4 flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 transition-colors"
+                    disabled={loading || !contractText.trim()}
+                    onClick={() => handleAnalyze(contractText)}
+                    className="group relative mt-4 w-full cursor-pointer overflow-hidden rounded-xl bg-indigo-600 hover:bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                   >
-                    <ChevronDown className={`h-4 w-4 transition-transform ${showOptional ? 'rotate-180' : ''}`} />
-                    {showOptional ? 'Hide' : 'Add'} pricing details (optional)
+                    <span className="relative z-10 flex items-center justify-center gap-2">
+                      <Sparkles className="h-5 w-5" />
+                      Analyze Contract
+                      <kbd className="ml-2 hidden rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[10px] font-normal text-white/60 sm:inline-block" suppressHydrationWarning>
+                        {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '\u2318' : 'Ctrl'}+{'\u21B5'}
+                      </kbd>
+                    </span>
+                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                   </button>
-
-                  <AnimatePresence>
-                    {showOptional && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                          {/* Quoted Price */}
-                          <div>
-                            <label htmlFor="price" className="mb-1.5 block text-xs font-medium text-gray-600">
-                              Quoted Price (optional — we&apos;ll auto-detect)
-                            </label>
-                            <div className="relative">
-                              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                                {currencySymbol}
-                              </span>
-                              <input
-                                id="price"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={quotedPrice}
-                                onChange={(e) => { setQuotedPrice(e.target.value); clearError('quotedPrice'); }}
-                                placeholder="5000"
-                                className={`w-full rounded-xl border bg-white py-3 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${errors.quotedPrice ? 'border-red-400' : 'border-gray-200'}`}
-                              />
-                            </div>
-                            <p className="mt-1 text-xs text-gray-400">Leave blank and we&apos;ll try to detect from your contract text</p>
-                            {errors.quotedPrice && (
-                              <p className="mt-1.5 text-xs text-red-600">{errors.quotedPrice}</p>
-                            )}
-                          </div>
-
-                          {/* Estimated Hours */}
-                          <div>
-                            <label htmlFor="hours" className="mb-1.5 block text-xs font-medium text-gray-600">
-                              Estimated Hours (optional)
-                            </label>
-                            <input
-                              id="hours"
-                              type="number"
-                              min="0"
-                              step="0.5"
-                              value={estimatedHours}
-                              onChange={(e) => { setEstimatedHours(e.target.value); clearError('estimatedHours'); }}
-                              placeholder="80"
-                              className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${errors.estimatedHours ? 'border-red-400' : 'border-gray-200'}`}
-                            />
-                            <p className="mt-1 text-xs text-gray-400">Leave blank and we&apos;ll try to detect from your contract text</p>
-                            {errors.estimatedHours && (
-                              <p className="mt-1.5 text-xs text-red-600">{errors.estimatedHours}</p>
-                            )}
-                          </div>
-
-                          {/* Currency */}
-                          <div>
-                            <label htmlFor="currency" className="mb-1.5 block text-xs font-medium text-gray-600">
-                              Currency
-                            </label>
-                            <div className="relative">
-                              <select
-                                id="currency"
-                                value={currency}
-                                onChange={(e) => setCurrency(e.target.value)}
-                                className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                              >
-                                {CURRENCIES.map((c) => (
-                                  <option key={c.value} value={c.value} className="bg-white text-gray-900">
-                                    {c.label}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            </div>
-                          </div>
-
-                          {/* Country */}
-                          <div>
-                            <label htmlFor="country" className="mb-1.5 block text-xs font-medium text-gray-600">
-                              Your Country <span className="text-gray-400">(for legal context)</span>
-                            </label>
-                            <div className="relative">
-                              <select
-                                id="country"
-                                value={country}
-                                onChange={(e) => setCountry(e.target.value)}
-                                className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                              >
-                                <option value="" className="bg-white text-gray-900">Auto-detect from currency</option>
-                                <option value="US" className="bg-white text-gray-900">United States</option>
-                                <option value="IN" className="bg-white text-gray-900">India</option>
-                                <option value="GB" className="bg-white text-gray-900">United Kingdom</option>
-                                <option value="EU" className="bg-white text-gray-900">European Union</option>
-                                <option value="AU" className="bg-white text-gray-900">Australia</option>
-                                <option value="CA" className="bg-white text-gray-900">Canada</option>
-                              </select>
-                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* AI Settings */}
-                <div className="space-y-4">
-
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAiSettings(!showAiSettings)}
-                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-500 transition-colors"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      {showAiSettings ? 'Hide' : 'Enable'} AI-Enhanced Analysis (Claude API)
-                      <ChevronDown className={`h-3 w-3 transition-transform ${showAiSettings ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    <AnimatePresence>
-                      {showAiSettings && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-                            <p className="mb-3 text-xs text-gray-600">
-                              Add your Claude API key for deeper AI-powered analysis. The key is sent only to Anthropic&apos;s API and never stored.
-                            </p>
-                            <input
-                              type="password"
-                              value={claudeApiKey}
-                              onChange={(e) => setClaudeApiKey(e.target.value)}
-                              placeholder="sk-ant-api03-..."
-                              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400"
-                            />
-                            <p className="mt-2 text-[10px] text-gray-400">
-                              Without an API key, you get heuristic analysis (regex-based). With it, you get AI-powered insights from Claude that catch subtle legal nuances.
-                            </p>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
                 </div>
 
                 {/* Error */}
@@ -1239,21 +971,12 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   </motion.div>
                 )}
 
-                {/* Loading progress card */}
-                {loading && (
-                  <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
-                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-600" />
-                    <p className="mt-4 text-sm font-medium text-gray-900">Analyzing your contract...</p>
-                    <p className="mt-1 text-xs text-gray-400">{elapsedSeconds}s elapsed</p>
-                  </div>
-                )}
-
                 {/* Credit Info */}
                 {status === 'authenticated' && userCredits !== null && userPlan !== 'admin' && (
                   <div className={`rounded-lg border p-3 text-sm ${userCredits < 5 ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white'}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">
-                        This analysis will use <span className="font-medium text-gray-900">{claudeApiKey ? '2' : '1'} credit(s)</span>
+                        Each analysis uses <span className="font-medium text-gray-900">1 credit</span>
                       </span>
                       <span className="text-gray-600">
                         Balance: <span className="font-medium text-gray-900">{userCredits}</span>
@@ -1268,32 +991,55 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   </div>
                 )}
 
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-indigo-600 hover:bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-2">
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-5 w-5" />
-                        Analyze My Deal
-                        <kbd className="ml-2 hidden rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[10px] font-normal text-white/60 sm:inline-block" suppressHydrationWarning>
-                          {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '\u2318' : 'Ctrl'}+{'\u21B5'}
-                        </kbd>
-                      </>
-                    )}
-                  </span>
-                  {/* shimmer overlay */}
-                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-                </button>
-              </form>
+                {/* Try with a sample contract */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={fillSample}
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 transition-all hover:bg-indigo-100 hover:border-indigo-300 disabled:opacity-50"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Try with a sample contract
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ====================================================== */}
+          {/*  STATE 1.5 — LOADING                                     */}
+          {/* ====================================================== */}
+          {!result && loading && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="py-20"
+            >
+              <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
+                <Loader2 className="mx-auto h-12 w-12 animate-spin text-indigo-600" />
+                <p className="mt-6 text-lg font-semibold text-gray-900">Analyzing your contract...</p>
+                <p className="mt-2 text-sm text-gray-400">
+                  {elapsedSeconds < 5
+                    ? 'Scanning for red flags and hidden costs...'
+                    : elapsedSeconds < 15
+                    ? 'Running AI-powered deep analysis...'
+                    : elapsedSeconds < 30
+                    ? 'Checking legal clauses and compliance...'
+                    : 'Almost done, finalizing your report...'}
+                </p>
+                <p className="mt-4 text-xs text-gray-300">{elapsedSeconds}s elapsed</p>
+
+                {uploadedFile && (
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-xs text-gray-500">
+                    <FileText className="h-3.5 w-3.5" />
+                    {uploadedFile.name}
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
 
@@ -1326,6 +1072,23 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   {result.missingClauses.length > 0 && <>{' '}and <span className="text-orange-600">{result.missingClauses.length} missing clause{result.missingClauses.length !== 1 ? 's' : ''}</span></>}
                 </p>
               </motion.div>
+
+              {/* Detected Information */}
+              {result && (result.contractType || result.detectedPrice || result.detectedRate || result.nominalHourlyRate > 0) && (
+                <motion.div variants={fadeUp}>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mb-2">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Detected from your contract</p>
+                    <div className="flex flex-wrap gap-3 text-xs text-gray-700">
+                      {autoDetected?.detectedParties?.client && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Client: {autoDetected.detectedParties.client}</span>}
+                      {autoDetected?.detectedParties?.contractor && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Contractor: {autoDetected.detectedParties.contractor}</span>}
+                      {result.contractType && result.contractType !== 'unknown' && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Type: {result.contractType}</span>}
+                      {result.nominalHourlyRate > 0 && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Rate: {currencySymbol}{result.nominalHourlyRate.toFixed(2)}/hr</span>}
+                      {result.detectedPrice != null && result.detectedPrice > 0 && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Total: {currencySymbol}{result.detectedPrice.toLocaleString()}</span>}
+                      {autoDetected?.detectedPaymentTerms && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Payment: {autoDetected.detectedPaymentTerms}</span>}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {/* -------------------------------------------------- */}
               {/*  TAB BAR                                             */}
@@ -1487,21 +1250,21 @@ Both parties agree to maintain confidentiality of proprietary information shared
                           <div className="rounded-lg bg-white p-3 border border-amber-100">
                             <p className="text-[10px] uppercase tracking-wider text-amber-600 font-medium">What You Expect</p>
                             <p className="mt-1 text-xl font-bold text-gray-900">
-                              {currencySymbol}{(result.nominalHourlyRate * (parseFloat(estimatedHours) || 80)).toLocaleString()}
+                              {currencySymbol}{(result.nominalHourlyRate * 80).toLocaleString()}
                             </p>
-                            <p className="text-xs text-gray-500">{currencySymbol}{result.nominalHourlyRate}/hr x {estimatedHours || 80} hrs</p>
+                            <p className="text-xs text-gray-500">{currencySymbol}{result.nominalHourlyRate}/hr x 80 hrs</p>
                           </div>
                           <div className="rounded-lg bg-white p-3 border border-red-100">
                             <p className="text-[10px] uppercase tracking-wider text-red-600 font-medium">What You&apos;ll Actually Earn</p>
                             <p className="mt-1 text-xl font-bold text-red-600">
-                              {currencySymbol}{(result.effectiveHourlyRate * (parseFloat(estimatedHours) || 80)).toLocaleString()}
+                              {currencySymbol}{(result.effectiveHourlyRate * 80).toLocaleString()}
                             </p>
-                            <p className="text-xs text-gray-500">{currencySymbol}{result.effectiveHourlyRate.toFixed(2)}/hr x {estimatedHours || 80} hrs</p>
+                            <p className="text-xs text-gray-500">{currencySymbol}{result.effectiveHourlyRate.toFixed(2)}/hr x 80 hrs</p>
                           </div>
                           <div className="rounded-lg bg-white p-3 border border-gray-200">
                             <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">Money Left on Table</p>
                             <p className="mt-1 text-xl font-bold text-gray-900">
-                              {currencySymbol}{((result.nominalHourlyRate - result.effectiveHourlyRate) * (parseFloat(estimatedHours) || 80)).toLocaleString()}
+                              {currencySymbol}{((result.nominalHourlyRate - result.effectiveHourlyRate) * 80).toLocaleString()}
                             </p>
                             <p className="text-xs text-gray-500">{result.rateReduction.toFixed(0)}% lost to contract terms</p>
                           </div>

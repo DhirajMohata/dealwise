@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
 
     const requiredFields: (keyof AnalysisInput)[] = [
       "contractText",
-      "projectScope",
       "currency",
     ];
 
@@ -130,29 +129,60 @@ export async function POST(request: NextRequest) {
     // Add country-specific legal context
     result.countryContext = getCountryContext(input.currency, input.country);
 
-    // Enhance with AI if any key is available (env or manual) and AI analysis is enabled
+    // AI-first analysis: AI does the FULL analysis, merged with regex results
     const hasAIKey = input.claudeApiKey || getAIProvider();
     if (hasAIKey && adminSettings.features.aiAnalysis !== false) {
       try {
         const aiResult = await enhanceWithAI(input, result, input.claudeApiKey || undefined);
         result.aiInsights = aiResult.aiInsights;
 
-        // Merge AI-found flags (deduplicate by issue)
+        // Merge AI red flags with regex flags (deduplicate by issue text)
         const existingIssues = new Set(result.redFlags.map(f => f.issue.toLowerCase()));
         aiResult.extraRedFlags.forEach(flag => {
-          if (!existingIssues.has(flag.issue.replace("\uD83E\uDD16 AI: ", "").toLowerCase())) {
+          const cleanedIssue = flag.issue.replace("\uD83E\uDD16 AI: ", "").toLowerCase();
+          if (!existingIssues.has(cleanedIssue)) {
             result.redFlags.push(flag);
+            existingIssues.add(cleanedIssue);
           }
         });
 
+        // Merge AI green flags (AI is more accurate for context, add any new ones)
+        const existingGreenBenefits = new Set(result.greenFlags.map(g => g.benefit.toLowerCase()));
+        aiResult.extraGreenFlags.forEach(flag => {
+          if (!existingGreenBenefits.has(flag.benefit.toLowerCase())) {
+            result.greenFlags.push(flag);
+            existingGreenBenefits.add(flag.benefit.toLowerCase());
+          }
+        });
+
+        // Merge AI missing clauses (deduplicate by name)
         const existingMissing = new Set(result.missingClauses.map(m => m.name.toLowerCase()));
         aiResult.extraMissing.forEach(clause => {
           if (!existingMissing.has(clause.name.toLowerCase())) {
             result.missingClauses.push(clause);
+            existingMissing.add(clause.name.toLowerCase());
           }
         });
+
+        // Use AI's detectedInfo for contract type, price, jurisdiction
+        if (aiResult.detectedInfo.contractType && aiResult.detectedInfo.contractType !== "unknown") {
+          result.contractType = aiResult.detectedInfo.contractType;
+        }
+        if (aiResult.detectedInfo.totalPrice != null) {
+          result.detectedPrice = aiResult.detectedInfo.totalPrice;
+        }
+        if (aiResult.detectedInfo.hourlyRate != null) {
+          result.detectedRate = aiResult.detectedInfo.hourlyRate;
+        }
+
+        // Final score = weighted: 40% regex + 60% AI
+        const finalScore = Math.round(
+          (result.overallScore * 0.4) + (aiResult.suggestedScore * 0.6)
+        );
+        result.overallScore = Math.max(0, Math.min(100, finalScore));
+
       } catch {
-        // AI enhancement failed — still return heuristic results
+        // AI analysis failed — still return heuristic results
         result.aiInsights = "AI enhancement is temporarily unavailable. Results below are from heuristic analysis.";
       }
     }
