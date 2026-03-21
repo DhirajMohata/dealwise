@@ -42,6 +42,7 @@ import Nav from '@/components/Nav';
 import HistoryPanel from '@/components/HistoryPanel';
 import ReviewPrompt from '@/components/ReviewPrompt';
 import OnboardingBanner from '@/components/OnboardingBanner';
+import ErrorFallback from '@/components/ErrorFallback';
 import { addHistoryEntry } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import type { AnalysisResult } from '@/lib/analyzer';
@@ -1230,9 +1231,11 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
                   >
-                    {error}
+                    <ErrorFallback
+                      error={error}
+                      reset={() => setError('')}
+                    />
                   </motion.div>
                 )}
 

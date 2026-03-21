@@ -612,9 +612,9 @@ export default function AdminPage() {
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 lg:hidden"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 lg:hidden"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
@@ -630,7 +630,7 @@ export default function AdminPage() {
                     setActiveTab(item.id);
                     setSidebarOpen(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     active
                       ? 'bg-white text-gray-900 shadow-sm'
                       : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
@@ -656,7 +656,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 lg:hidden"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 lg:hidden"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -814,14 +814,14 @@ export default function AdminPage() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => { setBulkAction('credits'); setShowBulkModal(true); }}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              className="flex min-h-[44px] items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
             >
               <Plus className="h-4 w-4" />
               Add Credits to All Users
             </button>
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              className="flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
               <Download className="h-4 w-4" />
               Export User Data
@@ -853,13 +853,13 @@ export default function AdminPage() {
                 placeholder="Search by email..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:w-64"
+                className="w-full rounded-lg border border-gray-200 bg-white py-3 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:w-64"
               />
             </div>
             <select
               value={planFilter}
               onChange={e => setPlanFilter(e.target.value as typeof planFilter)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
             >
               <option value="all">All Plans</option>
               <option value="free">Free</option>
@@ -869,7 +869,7 @@ export default function AdminPage() {
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value as typeof sortBy)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
             >
               <option value="joined">Sort: Joined</option>
               <option value="credits">Sort: Credits</option>
@@ -1700,7 +1700,7 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500">No messages yet</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left">
@@ -1801,7 +1801,7 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500">No reports yet</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left">
@@ -1932,7 +1932,7 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500">No reviews yet</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left">

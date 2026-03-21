@@ -175,6 +175,8 @@ export default function ChatPage() {
   const selectContract = (entry: HistoryEntry) => {
     setSelectedContract(entry);
     setMessages([]);
+    // On mobile, close sidebar when a contract is selected
+    setSidebarOpen(false);
     // Add a system-style message
     const introMsg: ChatMessage = {
       id: `intro-${Date.now()}`,
@@ -212,102 +214,111 @@ export default function ChatPage() {
       <Nav />
 
       <div className="flex flex-1 overflow-hidden">
+        {/* ---- Mobile overlay backdrop ---- */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* ---- Sidebar ---- */}
-        <AnimatePresence initial={false}>
-          {sidebarOpen && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 300, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="flex h-[calc(100vh-64px)] shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white"
-            >
-              <div className="flex items-center justify-between border-b border-gray-200 p-4">
-                <h2 className="text-sm font-semibold text-gray-900">Contract History</h2>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-900"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              </div>
+        <div
+          className={`${sidebarOpen ? 'fixed inset-0 z-40 w-full bg-white' : 'hidden'} md:relative md:block md:w-[300px] md:border-r md:border-gray-200`}
+        >
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Contract History</h2>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="min-h-[44px] min-w-[44px] rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-900 md:min-h-0 md:min-w-0"
+              >
+                <X className="h-5 w-5 md:hidden" />
+                <ChevronLeft className="hidden h-4 w-4 md:block" />
+              </button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-3">
-                {history.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <FileText className="mb-3 h-8 w-8 text-gray-300" />
-                    <p className="text-xs text-gray-400">No contract history yet</p>
-                    <Link
-                      href="/analyze"
-                      className="mt-3 text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                    >
-                      Analyze a contract
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {history.map((entry) => {
-                      const isSelected = selectedContract?.id === entry.id;
-                      return (
-                        <button
-                          key={entry.id}
-                          onClick={() => selectContract(entry)}
-                          className={`w-full rounded-xl p-3 text-left transition-all ${
-                            isSelected
-                              ? 'border border-indigo-200 bg-indigo-50 shadow-sm'
-                              : 'border border-transparent hover:border-gray-200 hover:bg-white'
-                          }`}
-                        >
-                          <p className={`truncate text-sm font-medium ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>
-                            {entry.contractSnippet}
-                          </p>
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <span className={`text-[10px] font-medium ${
-                              entry.overallScore >= 70 ? 'text-emerald-600' : entry.overallScore >= 40 ? 'text-amber-600' : 'text-red-600'
-                            }`}>
-                              Score: {entry.overallScore}
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {selectedContract && (
-                <div className="border-t border-gray-200 p-3">
-                  <button
-                    onClick={() => {
-                      setSelectedContract(null);
-                      setMessages([]);
-                    }}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
+            <div className="flex-1 overflow-y-auto p-3">
+              {history.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FileText className="mb-3 h-8 w-8 text-gray-300" />
+                  <p className="text-xs text-gray-400">No contract history yet</p>
+                  <Link
+                    href="/analyze"
+                    className="mt-3 text-xs font-medium text-indigo-600 hover:text-indigo-700"
                   >
-                    <X className="h-3.5 w-3.5" />
-                    Clear Selection
-                  </button>
+                    Analyze a contract
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {history.map((entry) => {
+                    const isSelected = selectedContract?.id === entry.id;
+                    return (
+                      <button
+                        key={entry.id}
+                        onClick={() => selectContract(entry)}
+                        className={`min-h-[44px] w-full rounded-xl p-3 text-left transition-all ${
+                          isSelected
+                            ? 'border border-indigo-200 bg-indigo-50 shadow-sm'
+                            : 'border border-transparent hover:border-gray-200 hover:bg-white'
+                        }`}
+                      >
+                        <p className={`truncate text-sm font-medium ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>
+                          {entry.contractSnippet}
+                        </p>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className={`text-[10px] font-medium ${
+                            entry.overallScore >= 70 ? 'text-emerald-600' : entry.overallScore >= 40 ? 'text-amber-600' : 'text-red-600'
+                          }`}>
+                            Score: {entry.overallScore}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-            </motion.aside>
-          )}
-        </AnimatePresence>
+            </div>
+
+            {selectedContract && (
+              <div className="border-t border-gray-200 p-3">
+                <button
+                  onClick={() => {
+                    setSelectedContract(null);
+                    setMessages([]);
+                  }}
+                  className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Clear Selection
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ---- Mobile sidebar toggle button ---- */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="fixed bottom-20 left-4 z-30 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-gray-900 p-3 text-white shadow-lg md:hidden"
+        >
+          <FileText className="h-5 w-5" />
+        </button>
 
         {/* ---- Main Chat Area ---- */}
         <div className="flex flex-1 flex-col">
           {/* Chat header */}
-          <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-6 py-3">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-900"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            )}
+          <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 md:px-6">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="hidden rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-900 md:block"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600">
               <Bot className="h-4 w-4 text-white" />
             </div>
@@ -321,15 +332,15 @@ export default function ChatPage() {
             </div>
             <Link
               href="/dashboard"
-              className="text-xs font-medium text-gray-500 transition-colors hover:text-gray-900"
+              className="min-h-[44px] flex items-center text-xs font-medium text-gray-500 transition-colors hover:text-gray-900"
             >
               <ArrowLeft className="mr-1 inline h-3.5 w-3.5" />
-              Dashboard
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-6">
             {messages.length === 0 ? (
               /* Empty state */
               <div className="flex h-full flex-col items-center justify-center">
@@ -443,8 +454,8 @@ export default function ChatPage() {
           </div>
 
           {/* Input bar */}
-          <div className="border-t border-gray-200 bg-white px-6 py-4">
-            <div className="mx-auto flex max-w-3xl items-end gap-3">
+          <div className="border-t border-gray-200 bg-white px-3 py-4 md:px-6">
+            <div className="mx-auto flex max-w-3xl items-end gap-2 md:gap-3">
               <div className="relative flex-1">
                 <textarea
                   ref={inputRef}
@@ -460,7 +471,7 @@ export default function ChatPage() {
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() || loading}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+                className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

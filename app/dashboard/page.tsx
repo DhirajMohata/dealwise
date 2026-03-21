@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Nav from '@/components/Nav';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ConfirmModal from '@/components/ConfirmModal';
 import { getHistory, removeHistoryEntry, type HistoryEntry } from '@/lib/auth';
 import { getScoreColor, getRecommendationConfig, formatDate } from '@/lib/constants';
 
@@ -60,6 +61,7 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('');
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string }>({ isOpen: false, id: '' });
   const ITEMS_PER_PAGE = 15;
 
   const loadHistory = useCallback(async () => {
@@ -140,7 +142,13 @@ export default function DashboardPage() {
   }, [history]);
 
   /* ---- Delete handler ---- */
-  function handleDelete(id: string) {
+  function handleDeleteClick(id: string) {
+    setDeleteConfirm({ isOpen: true, id });
+  }
+
+  function handleDeleteConfirm() {
+    const id = deleteConfirm.id;
+    setDeleteConfirm({ isOpen: false, id: '' });
     removeHistoryEntry(id);
     setHistory(getHistory());
     // Also delete from server if authenticated
@@ -375,7 +383,7 @@ export default function DashboardPage() {
                               View
                             </button>
                             <button
-                              onClick={() => handleDelete(entry.id)}
+                              onClick={() => handleDeleteClick(entry.id)}
                               className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                               title="Delete entry"
                             >
@@ -525,6 +533,16 @@ export default function DashboardPage() {
           </motion.div>
         </div>
       </main>
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        title="Delete Analysis"
+        message="Are you sure you want to delete this analysis? This action cannot be undone."
+        confirmText="Delete"
+        danger
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm({ isOpen: false, id: '' })}
+      />
     </div>
     </ProtectedRoute>
   );

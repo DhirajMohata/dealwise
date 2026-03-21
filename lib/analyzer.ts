@@ -44,6 +44,17 @@ export interface ScopeRisk {
   potentialCost: string;
 }
 
+export interface ScoreBreakdown {
+  baseScore: number;
+  shortTextPenalty: number;
+  heuristicFlagDeductions: number;
+  aiFlagDeductions: number;
+  missingClauseDeductions: number;
+  greenFlagBonus: number;
+  rateReductionPenalty: number;
+  finalScore: number;
+}
+
 export interface AnalysisResult {
   overallScore: number;
   effectiveHourlyRate: number;
@@ -60,6 +71,7 @@ export interface AnalysisResult {
   detectedRate?: number;
   aiInsights?: string;
   countryContext?: string;
+  scoreBreakdown?: ScoreBreakdown;
 }
 
 // ---------------------------------------------------------------------------
@@ -1122,44 +1134,59 @@ function calculateOverallScore(
   missingClauses: MissingClause[],
   rateReduction: number,
   contractTextLength: number = 1000
-): number {
+): { score: number; breakdown: ScoreBreakdown } {
   // Start at 50 — a truly neutral baseline
   let score = 50;
+  const breakdown: ScoreBreakdown = {
+    baseScore: 50,
+    shortTextPenalty: 0,
+    heuristicFlagDeductions: 0,
+    aiFlagDeductions: 0,
+    missingClauseDeductions: 0,
+    greenFlagBonus: 0,
+    rateReductionPenalty: 0,
+    finalScore: 0,
+  };
 
   // Penalty for very short/empty contracts
-  if (contractTextLength < 100) score -= 20;
-  else if (contractTextLength < 300) score -= 10;
+  if (contractTextLength < 100) { score -= 20; breakdown.shortTextPenalty = -20; }
+  else if (contractTextLength < 300) { score -= 10; breakdown.shortTextPenalty = -10; }
 
   // --- DEDUCTIONS ---
 
   // Red flags: diminishing returns — first few hurt the most, later ones less
   // Only count HEURISTIC flags for scoring (AI flags are informational extras)
-  const heuristicFlags = redFlags.filter(f => !f.issue.startsWith("🤖"));
-  const aiFlags = redFlags.filter(f => f.issue.startsWith("🤖"));
+  const heuristicFlags = redFlags.filter(f => !f.issue.startsWith("\u{1F916}"));
+  const aiFlags = redFlags.filter(f => f.issue.startsWith("\u{1F916}"));
 
-  let flagDeductions = 0;
+  let heuristicDeduct = 0;
   heuristicFlags.forEach((flag, i) => {
     // Diminishing impact: each successive flag penalizes less
     const diminish = Math.max(0.4, 1 - i * 0.1);
     switch (flag.severity) {
-      case "critical": flagDeductions += 12 * diminish; break;
-      case "high": flagDeductions += 7 * diminish; break;
-      case "medium": flagDeductions += 3 * diminish; break;
-      case "low": flagDeductions += 1 * diminish; break;
+      case "critical": heuristicDeduct += 12 * diminish; break;
+      case "high": heuristicDeduct += 7 * diminish; break;
+      case "medium": heuristicDeduct += 3 * diminish; break;
+      case "low": heuristicDeduct += 1 * diminish; break;
     }
   });
+
+  breakdown.heuristicFlagDeductions = -Math.round(heuristicDeduct);
+  score -= Math.round(heuristicDeduct);
 
   // AI flags add less penalty (they're supplementary, often overlap with heuristics)
+  let aiDeduct = 0;
   aiFlags.forEach((flag) => {
     switch (flag.severity) {
-      case "critical": flagDeductions += 4; break;
-      case "high": flagDeductions += 2; break;
-      case "medium": flagDeductions += 1; break;
-      case "low": flagDeductions += 0.5; break;
+      case "critical": aiDeduct += 4; break;
+      case "high": aiDeduct += 2; break;
+      case "medium": aiDeduct += 1; break;
+      case "low": aiDeduct += 0.5; break;
     }
   });
 
-  score -= Math.round(flagDeductions);
+  breakdown.aiFlagDeductions = -Math.round(aiDeduct);
+  score -= Math.round(aiDeduct);
 
   // Missing clauses: capped and scaled by contract length
   // Short contracts naturally miss more — don't penalize as heavily
@@ -1172,23 +1199,35 @@ function calculateOverallScore(
     }
   }
   // Cap: shorter contracts get lower cap (they can't have everything)
-  const missingCap = contractTextLength < 500 ? 15 : contractTextLength < 2000 ? 20 : 25;
-  score -= Math.min(Math.round(missingDeductions), missingCap);
+  // If 5+ green flags, reduce missing clause cap further — professional contract
+  const missingCap = greenFlags.length >= 5
+    ? 12  // Professional contract — don't penalize too much for missing nice-to-haves
+    : contractTextLength < 500 ? 15
+    : contractTextLength < 2000 ? 20
+    : 25;
+  const missingPenalty = Math.min(Math.round(missingDeductions), missingCap);
+  breakdown.missingClauseDeductions = -missingPenalty;
+  score -= missingPenalty;
 
   // Rate reduction penalty (only if we have rate data)
-  if (rateReduction > 50) score -= 10;
-  else if (rateReduction > 30) score -= 7;
-  else if (rateReduction > 15) score -= 4;
+  let rateReductionPenalty = 0;
+  if (rateReduction > 50) rateReductionPenalty = 10;
+  else if (rateReduction > 30) rateReductionPenalty = 7;
+  else if (rateReduction > 15) rateReductionPenalty = 4;
+  breakdown.rateReductionPenalty = -rateReductionPenalty;
+  score -= rateReductionPenalty;
 
   // --- BONUSES ---
 
-  // Green flags: each one adds significant value
+  // Green flags: each one adds 6 points (calibrated up from 5)
   // More green flags = better contract, with bonus for having many
-  const greenBonus = greenFlags.length * 5 + (greenFlags.length >= 5 ? 5 : 0);
+  const greenBonus = greenFlags.length * 6 + (greenFlags.length >= 5 ? 6 : 0);
+  breakdown.greenFlagBonus = greenBonus;
   score += greenBonus;
 
   // Clamp to 0-100
-  return Math.max(0, Math.min(100, Math.round(score)));
+  breakdown.finalScore = Math.max(0, Math.min(100, Math.round(score)));
+  return { score: breakdown.finalScore, breakdown };
 }
 
 function determineRecommendation(
@@ -1475,7 +1514,7 @@ export function analyzeContract(input: AnalysisInput): AnalysisResult {
     : 0;
 
   // ---------- Score and recommendation ----------
-  const overallScore = calculateOverallScore(allRedFlags, allGreenFlags, allMissingClauses, rateReduction, contractText.length);
+  const { score: overallScore, breakdown: scoreBreakdown } = calculateOverallScore(allRedFlags, allGreenFlags, allMissingClauses, rateReduction, contractText.length);
   const recommendation = determineRecommendation(overallScore, allRedFlags);
 
   const partialResult = {
@@ -1491,6 +1530,7 @@ export function analyzeContract(input: AnalysisInput): AnalysisResult {
     contractType,
     detectedPrice: detected.price,
     detectedRate: detected.rate,
+    scoreBreakdown,
   };
 
   const summary = generateSummary(partialResult, currency);

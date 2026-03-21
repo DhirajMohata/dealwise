@@ -19,6 +19,7 @@ import { getSettings, saveSettings, type Settings } from '@/lib/settings';
 import { clearHistory } from '@/lib/auth';
 import Nav from '@/components/Nav';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ConfirmModal from '@/components/ConfirmModal';
 import { CURRENCIES, COUNTRIES } from '@/lib/constants';
 
 const fadeUp = {
@@ -51,6 +52,7 @@ export default function SettingsPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [creditData, setCreditData] = useState<CreditData | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
     setSettings(getSettings());
@@ -74,10 +76,12 @@ export default function SettingsPage() {
   }
 
   function handleClearHistory() {
-    if (window.confirm('Are you sure? This will delete all your analysis history.')) {
-      clearHistory();
-      alert('Analysis history cleared.');
-    }
+    setShowClearConfirm(true);
+  }
+
+  function handleClearHistoryConfirm() {
+    setShowClearConfirm(false);
+    clearHistory();
   }
 
   if (!settings) return null;
@@ -317,6 +321,16 @@ export default function SettingsPage() {
           </motion.section>
         </motion.div>
       </div>
+
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Clear Analysis History"
+        message="Are you sure? This will delete all your analysis history. This action cannot be undone."
+        confirmText="Clear History"
+        danger
+        onConfirm={handleClearHistoryConfirm}
+        onCancel={() => setShowClearConfirm(false)}
+      />
       </div>
     </ProtectedRoute>
   );
