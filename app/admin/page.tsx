@@ -36,6 +36,10 @@ import {
   FileText,
   Hash,
   Loader2,
+  MessageSquare,
+  Bug,
+  Star,
+  ChevronUp,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -78,7 +82,38 @@ interface AdminSettings {
   };
 }
 
-type TabId = 'overview' | 'users' | 'credits' | 'analytics' | 'settings' | 'system';
+type TabId = 'overview' | 'users' | 'credits' | 'analytics' | 'settings' | 'system' | 'messages' | 'reports' | 'reviews';
+
+interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'unread' | 'read' | 'replied';
+  created_at: string;
+}
+
+interface IssueReport {
+  id: string;
+  description: string;
+  page_url: string;
+  user_email: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  admin_notes: string;
+  created_at: string;
+}
+
+interface Review {
+  id: string;
+  user_email: string;
+  user_name: string;
+  rating: number;
+  review_text: string;
+  is_approved: boolean;
+  is_featured: boolean;
+  created_at: string;
+}
 
 // ── Sidebar Nav Items ──────────────────────────────────────────────────────────
 
@@ -87,6 +122,9 @@ const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'users', label: 'Users', icon: Users },
   { id: 'credits', label: 'Credits', icon: CreditCard },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'messages', label: 'Messages', icon: MessageSquare },
+  { id: 'reports', label: 'Reports', icon: Bug },
+  { id: 'reviews', label: 'Reviews', icon: Star },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'system', label: 'System', icon: Server },
 ];
@@ -143,6 +181,19 @@ export default function AdminPage() {
   const [settingsForm, setSettingsForm] = useState<AdminSettings | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
+  // Messages tab state
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [expandedMessage, setExpandedMessage] = useState<string | null>(null);
+
+  // Reports tab state
+  const [reports, setReports] = useState<IssueReport[]>([]);
+  const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
+  const [notesText, setNotesText] = useState('');
+
+  // Reviews tab state
+  const [reviews, setReviews] = useState<Review[]>([]);
+
   // ── Data Fetching ──────────────────────────────────────────────────────────
 
   const fetchUsers = useCallback(async () => {
@@ -188,13 +239,37 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/messages');
+      if (res.ok) setMessages(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  const fetchReports = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/reports');
+      if (res.ok) setReports(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  const fetchReviews = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/reviews');
+      if (res.ok) setReviews(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     if (session?.user?.email) {
       fetchUsers();
       fetchStats();
       fetchSettings();
+      fetchMessages();
+      fetchReports();
+      fetchReviews();
     }
-  }, [session, fetchUsers, fetchStats, fetchSettings]);
+  }, [session, fetchUsers, fetchStats, fetchSettings, fetchMessages, fetchReports, fetchReviews]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -353,6 +428,79 @@ export default function AdminPage() {
     a.click();
     URL.revokeObjectURL(url);
     showSuccess('User data exported as CSV');
+  }
+
+  async function handleUpdateMessageStatus(id: string, status: string) {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      if (!res.ok) throw new Error('Failed to update message');
+      await fetchMessages();
+      showSuccess(`Message marked as ${status}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update message');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleUpdateReportStatus(id: string, status: string) {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      if (!res.ok) throw new Error('Failed to update report');
+      await fetchReports();
+      showSuccess(`Report status changed to ${status}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update report');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSaveReportNotes(id: string, admin_notes: string) {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, admin_notes }),
+      });
+      if (!res.ok) throw new Error('Failed to save notes');
+      await fetchReports();
+      setEditingNotes(null);
+      showSuccess('Notes saved');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save notes');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReviewAction(id: string, action: string) {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      if (!res.ok) throw new Error('Failed to update review');
+      await fetchReviews();
+      showSuccess(`Review ${action}d`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update review');
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   function showSuccess(msg: string) {
@@ -516,7 +664,7 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { fetchUsers(); fetchStats(); fetchSettings(); }}
+                onClick={() => { fetchUsers(); fetchStats(); fetchSettings(); fetchMessages(); fetchReports(); fetchReviews(); }}
                 className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 title="Refresh data"
               >
@@ -547,6 +695,9 @@ export default function AdminPage() {
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'credits' && renderCredits()}
             {activeTab === 'analytics' && renderAnalytics()}
+            {activeTab === 'messages' && renderMessages()}
+            {activeTab === 'reports' && renderReports()}
+            {activeTab === 'reviews' && renderReviews()}
             {activeTab === 'settings' && renderSettings()}
             {activeTab === 'system' && renderSystem()}
           </div>
@@ -1517,6 +1668,368 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TAB: MESSAGES
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  function renderMessages() {
+    const statusBadge = (status: string) => {
+      switch (status) {
+        case 'read': return 'bg-blue-50 text-blue-700 border border-blue-200';
+        case 'replied': return 'bg-green-50 text-green-700 border border-green-200';
+        default: return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Contact Messages</h2>
+          <span className="text-sm text-gray-500">{messages.length} total</span>
+        </div>
+
+        {messages.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
+            <MessageSquare className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">No messages yet</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Date</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Name</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Email</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Subject</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Message</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Status</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {messages.map((msg) => (
+                  <>
+                    <tr
+                      key={msg.id}
+                      className={`border-b border-gray-50 transition-colors cursor-pointer ${expandedMessage === msg.id ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
+                      onClick={() => setExpandedMessage(expandedMessage === msg.id ? null : msg.id)}
+                    >
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {new Date(msg.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{msg.name || '-'}</td>
+                      <td className="px-4 py-3 text-gray-600">{msg.email || '-'}</td>
+                      <td className="px-4 py-3 text-gray-600">{msg.subject || '-'}</td>
+                      <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate">{msg.message}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge(msg.status || 'unread')}`}>
+                          {msg.status || 'unread'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleUpdateMessageStatus(msg.id, 'read'); }}
+                            className="rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                            disabled={actionLoading}
+                          >
+                            Read
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleUpdateMessageStatus(msg.id, 'replied'); }}
+                            className="rounded px-2 py-1 text-xs font-medium text-green-600 hover:bg-green-50"
+                            disabled={actionLoading}
+                          >
+                            Replied
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedMessage === msg.id && (
+                      <tr key={`${msg.id}-expanded`}>
+                        <td colSpan={7} className="bg-gray-50 px-6 py-4 border-b border-gray-100">
+                          <div className="rounded-lg bg-white border border-gray-200 p-4">
+                            <p className="text-xs font-medium text-gray-500 mb-1">Full Message</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.message}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TAB: REPORTS
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  function renderReports() {
+    const statusBadge = (status: string) => {
+      switch (status) {
+        case 'in_progress': return 'bg-blue-50 text-blue-700 border border-blue-200';
+        case 'resolved': return 'bg-green-50 text-green-700 border border-green-200';
+        case 'closed': return 'bg-gray-100 text-gray-600 border border-gray-200';
+        default: return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
+      }
+    };
+
+    const REPORT_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Issue Reports</h2>
+          <span className="text-sm text-gray-500">{reports.length} total</span>
+        </div>
+
+        {reports.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
+            <Bug className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">No reports yet</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Date</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">User</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Page URL</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Description</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Status</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((report) => (
+                  <>
+                    <tr
+                      key={report.id}
+                      className={`border-b border-gray-50 transition-colors cursor-pointer ${expandedReport === report.id ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
+                      onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
+                    >
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {new Date(report.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{report.user_email || 'Anonymous'}</td>
+                      <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate text-xs font-mono">
+                        {report.page_url || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate">{report.description}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={report.status || 'open'}
+                          onChange={(e) => { e.stopPropagation(); handleUpdateReportStatus(report.id, e.target.value); }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium outline-none cursor-pointer ${statusBadge(report.status || 'open')}`}
+                        >
+                          {REPORT_STATUSES.map(s => (
+                            <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingNotes(report.id);
+                            setNotesText(report.admin_notes || '');
+                          }}
+                          className="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+                        >
+                          Notes
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedReport === report.id && (
+                      <tr key={`${report.id}-expanded`}>
+                        <td colSpan={6} className="bg-gray-50 px-6 py-4 border-b border-gray-100">
+                          <div className="space-y-3">
+                            <div className="rounded-lg bg-white border border-gray-200 p-4">
+                              <p className="text-xs font-medium text-gray-500 mb-1">Full Description</p>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.description}</p>
+                            </div>
+                            {report.admin_notes && (
+                              <div className="rounded-lg bg-white border border-gray-200 p-4">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Admin Notes</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.admin_notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {editingNotes === report.id && (
+                      <tr key={`${report.id}-notes`}>
+                        <td colSpan={6} className="bg-gray-50 px-6 py-4 border-b border-gray-100">
+                          <div className="rounded-lg bg-white border border-gray-200 p-4">
+                            <p className="text-xs font-medium text-gray-500 mb-2">Admin Notes</p>
+                            <textarea
+                              value={notesText}
+                              onChange={(e) => setNotesText(e.target.value)}
+                              rows={3}
+                              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-indigo-500 resize-none"
+                              placeholder="Add notes about this report..."
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSaveReportNotes(report.id, notesText); }}
+                                disabled={actionLoading}
+                                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                              >
+                                Save Notes
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingNotes(null); }}
+                                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TAB: REVIEWS
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  function renderReviews() {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">User Reviews</h2>
+          <span className="text-sm text-gray-500">{reviews.length} total</span>
+        </div>
+
+        {reviews.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
+            <Star className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">No reviews yet</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Date</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">User</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Rating</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Review</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Approved</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Featured</th>
+                  <th className="px-4 py-3 text-xs font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviews.map((review) => (
+                  <tr key={review.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {new Date(review.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium text-gray-900 text-xs">{review.user_name}</p>
+                        <p className="text-xs text-gray-400">{review.user_email}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star
+                            key={n}
+                            className={`h-3.5 w-3.5 ${n <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[250px] truncate">
+                      {review.review_text || '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleReviewAction(review.id, review.is_approved ? 'reject' : 'approve')}
+                        disabled={actionLoading}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                          review.is_approved
+                            ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                            : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
+                        }`}
+                      >
+                        {review.is_approved ? (
+                          <><CheckCircle className="h-3 w-3" /> Yes</>
+                        ) : (
+                          <><X className="h-3 w-3" /> No</>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleReviewAction(review.id, review.is_featured ? 'unfeature' : 'feature')}
+                        disabled={actionLoading}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                          review.is_featured
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                            : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
+                        }`}
+                      >
+                        {review.is_featured ? (
+                          <><Star className="h-3 w-3 fill-amber-400" /> Featured</>
+                        ) : (
+                          <><Star className="h-3 w-3" /> Feature</>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        {!review.is_approved && (
+                          <button
+                            onClick={() => handleReviewAction(review.id, 'approve')}
+                            disabled={actionLoading}
+                            className="rounded px-2 py-1 text-xs font-medium text-green-600 hover:bg-green-50"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        {review.is_approved && (
+                          <button
+                            onClick={() => handleReviewAction(review.id, 'reject')}
+                            disabled={actionLoading}
+                            className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Reject
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   }

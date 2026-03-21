@@ -40,6 +40,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Nav from '@/components/Nav';
 import HistoryPanel from '@/components/HistoryPanel';
+import ReviewPrompt from '@/components/ReviewPrompt';
 import OnboardingBanner from '@/components/OnboardingBanner';
 import { addHistoryEntry } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
@@ -368,6 +369,7 @@ export default function AnalyzePage() {
   const [negotiationEmail, setNegotiationEmail] = useState('');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const [simRevisions, setSimRevisions] = useState(0);
   const [simPayDelay, setSimPayDelay] = useState(0);
   const [simScopeCreep, setSimScopeCreep] = useState(0);
@@ -567,6 +569,11 @@ Both parties agree to maintain confidentiality of proprietary information shared
       // After analysis, prompt signup if not logged in
       if (status === "unauthenticated") {
         setShowSignupPrompt(true);
+      }
+
+      // After analysis, prompt review for logged-in users
+      if (status === "authenticated") {
+        setTimeout(() => setShowReview(true), 3000);
       }
 
       // Reset filters and tab when new results arrive
@@ -2148,6 +2155,11 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   Get Score Badge
                 </button>
               </motion.div>
+
+              {/* Review prompt for authenticated users after analysis */}
+              <div className="mt-6">
+                <ReviewPrompt show={showReview && !!result} onClose={() => setShowReview(false)} />
+              </div>
 
               {/* Signup prompt for unauthenticated users after analysis */}
               {showSignupPrompt && status === "unauthenticated" && (

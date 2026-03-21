@@ -942,7 +942,7 @@ export default function Home() {
           <div className="flex items-center gap-5 text-[13px] text-gray-400">
             <Link href="/privacy" className="transition-colors hover:text-gray-600">Privacy</Link>
             <Link href="/terms" className="transition-colors hover:text-gray-600">Terms</Link>
-            <a href="mailto:support@dealwise.app" className="transition-colors hover:text-gray-600">Contact</a>
+            <Link href="/contact" className="transition-colors hover:text-gray-600">Contact</Link>
           </div>
         </div>
       </footer>
