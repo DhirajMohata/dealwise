@@ -105,7 +105,10 @@ function currencyToCountry(currency: string): string {
   return map[currency] || "US";
 }
 
-// Detect which AI provider to use based on available keys
+// ============================================================
+// AI Provider Detection
+// ============================================================
+
 function getAIProvider(): { provider: 'openai' | 'anthropic'; key: string } | null {
   const openaiKey = process.env.OPENAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -114,41 +117,132 @@ function getAIProvider(): { provider: 'openai' | 'anthropic'; key: string } | nu
   return null;
 }
 
-function buildPrompt(input: AnalysisInput, baseResult: AnalysisResult): string {
-  return `You are a senior contract lawyer specializing in freelancer/independent contractor agreements. Analyze this contract and provide insights that regex-based analysis might miss.
+// ============================================================
+// Expert System Prompt — Role, Methodology, Risk Framework
+// ============================================================
+
+const SYSTEM_PROMPT = `You are an expert contract risk analyst specializing in freelancer and independent contractor agreements. You have 15 years of experience reviewing contracts across US, UK, EU, Indian, Australian, and Canadian jurisdictions.
+
+METHODOLOGY:
+1. Read the entire contract carefully, identifying each party and their obligations
+2. For each clause, assess: Is this fair to the freelancer? What is the financial risk?
+3. Flag clauses that are one-sided, ambiguous, or missing standard protections
+4. Always cite the exact section number or quote the exact text you are referencing
+5. Quantify financial impact where possible (e.g., "adds ~20% unpaid hours")
+
+SEVERITY DEFINITIONS:
+- critical: Will cause direct financial loss or legal liability. Examples: unlimited revisions with no cap, IP transfer before payment, termination without payment for completed work, unlimited liability
+- high: Creates significant risk that could cost money. Examples: net-60+ payment delay, broad non-compete (>12 months), one-sided indemnification, no kill fee
+- medium: Suboptimal but manageable with awareness. Examples: net-30 payment (standard but not ideal), confidentiality without time limit, vague scope language
+- low: Minor concern, good to fix but not urgent. Examples: missing governing law, no force majeure clause
+
+CRITICAL RULES — READ CAREFULLY:
+- Do NOT flag standard acceptable practices as red flags:
+  * "Contractor is an independent contractor" is GOOD, not a red flag
+  * "IP transfers to Client upon receipt of full payment" is the FREELANCER-FRIENDLY approach — do NOT flag this
+  * "Contractor retains pre-existing IP" is standard and good
+  * Reasonable confidentiality (2-5 years) is standard
+  * Mutual indemnification is fair and balanced
+- Do NOT duplicate findings already detected by the automated system (listed in the user message)
+- ONLY report findings you can support with specific text from the contract
+- For each finding, ALWAYS include the exact quote from the contract text
+- Focus on subtle risks that simple keyword matching would miss: implied obligations, ambiguous scope boundaries, hidden cost triggers, jurisdiction-specific issues
+- If the contract is genuinely good and well-drafted, say so — do not invent problems`;
+
+// ============================================================
+// JSON Schema for Structured Output (100% guaranteed valid JSON)
+// ============================================================
+
+const ANALYSIS_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    additionalRedFlags: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          severity: { type: "string" as const, enum: ["critical", "high", "medium", "low"] },
+          clause: { type: "string" as const, description: "Exact quote from contract text" },
+          issue: { type: "string" as const, description: "What is wrong, in plain English" },
+          impact: { type: "string" as const, description: "Financial or legal impact on freelancer" },
+          hourlyRateImpact: { type: "number" as const, description: "Estimated dollar per hour reduction, 0 if not quantifiable" },
+          suggestion: { type: "string" as const, description: "Counter-proposal language the freelancer can send" },
+        },
+        required: ["severity", "clause", "issue", "impact", "hourlyRateImpact", "suggestion"] as const,
+        additionalProperties: false,
+      },
+    },
+    additionalMissingClauses: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          name: { type: "string" as const },
+          importance: { type: "string" as const, enum: ["critical", "important", "nice_to_have"] },
+          description: { type: "string" as const },
+          suggestedLanguage: { type: "string" as const },
+        },
+        required: ["name", "importance", "description", "suggestedLanguage"] as const,
+        additionalProperties: false,
+      },
+    },
+    overallAssessment: { type: "string" as const, description: "2-3 paragraph plain-English analysis from a freelancer perspective" },
+    negotiationPriorities: {
+      type: "array" as const,
+      items: { type: "string" as const },
+      description: "Top 3 things to negotiate first, in priority order",
+    },
+    contractQuality: {
+      type: "string" as const,
+      enum: ["excellent", "good", "fair", "poor", "dangerous"],
+      description: "Overall contract quality from the freelancer perspective",
+    },
+  },
+  required: ["additionalRedFlags", "additionalMissingClauses", "overallAssessment", "negotiationPriorities", "contractQuality"] as const,
+  additionalProperties: false,
+};
+
+// ============================================================
+// Build User Prompt (contract-specific, includes regex findings for dedup)
+// ============================================================
+
+function buildUserPrompt(input: AnalysisInput, baseResult: AnalysisResult): string {
+  return `Analyze this freelance contract. The automated system already found the issues listed below — do NOT repeat them. Only find ADDITIONAL issues the automated system missed.
 
 CONTRACT TEXT:
+---
 ${input.contractText}
+---
 
-PROJECT SCOPE:
-${input.projectScope}
+PROJECT CONTEXT:
+- Scope: ${input.projectScope || "Not specified"}
+- Quoted Price: ${input.currency} ${input.quotedPrice || "Not specified"}
+- Estimated Hours: ${input.estimatedHours || "Not specified"}
+- Currency: ${input.currency}
+- Effective Hourly Rate: ${input.currency} ${baseResult.effectiveHourlyRate.toFixed(2)} (nominal: ${baseResult.nominalHourlyRate.toFixed(2)}, ${baseResult.rateReduction.toFixed(1)}% reduction)
 
-QUOTED PRICE: ${input.currency} ${input.quotedPrice}
-ESTIMATED HOURS: ${input.estimatedHours}
+ALREADY DETECTED BY AUTOMATED SYSTEM (do NOT duplicate these):
+Red Flags:
+${baseResult.redFlags.map(f => `- [${f.severity}] ${f.issue}`).join("\n") || "- None detected"}
 
-The automated analysis already found these issues:
-${baseResult.redFlags.map(f => `- [${f.severity}] ${f.issue}`).join("\n")}
+Missing Clauses:
+${baseResult.missingClauses.map(m => `- [${m.importance}] ${m.name}`).join("\n") || "- None detected"}
 
-Missing clauses detected:
-${baseResult.missingClauses.map(m => `- [${m.importance}] ${m.name}`).join("\n")}
+Green Flags (positive terms found):
+${baseResult.greenFlags.map(g => `- ${g.benefit}`).join("\n") || "- None detected"}
 
-Current effective hourly rate: ${input.currency} ${baseResult.effectiveHourlyRate.toFixed(2)} (down from ${baseResult.nominalHourlyRate.toFixed(2)})
-
-Please provide:
-1. **Additional red flags** the automated system might have missed — subtle legal language, implied obligations, or hidden risks. For each, provide: severity (critical/high/medium/low), the problematic clause excerpt, what's wrong, financial impact, and suggested counter-proposal language.
-2. **Additional missing protections** not already flagged.
-3. **Overall AI assessment** — a 2-3 paragraph analysis of this deal from a freelancer's perspective. Be direct, practical, and specific. Include country-specific legal considerations if the currency suggests a jurisdiction.
-4. **Negotiation strategy** — the top 3 things to negotiate first, in order of impact.
-
-Respond in this exact JSON format:
-{
-  "extraRedFlags": [{"severity": "...", "clause": "...", "issue": "...", "impact": "...", "hourlyRateImpact": 0, "suggestion": "..."}],
-  "extraMissing": [{"name": "...", "importance": "...", "description": "...", "suggestedLanguage": "..."}],
-  "aiInsights": "Your full analysis as a markdown string..."
-}`;
+Find ONLY additional issues, missing protections, and subtle risks that the automated keyword-based system could not detect. Focus on: implied obligations, ambiguous language, hidden cost triggers, jurisdiction-specific concerns, and clauses that interact with each other to create risk.`;
 }
 
-async function callOpenAI(prompt: string, apiKey: string): Promise<string> {
+// ============================================================
+// OpenAI Call with Structured Output
+// ============================================================
+
+async function callOpenAIStructured(
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string
+): Promise<Record<string, unknown>> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -157,9 +251,20 @@ async function callOpenAI(prompt: string, apiKey: string): Promise<string> {
     },
     body: JSON.stringify({
       model: "gpt-4o",
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.1,
       max_tokens: 4096,
-      temperature: 0.3,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "contract_analysis",
+          strict: true,
+          schema: ANALYSIS_SCHEMA,
+        },
+      },
     }),
   });
 
@@ -169,10 +274,19 @@ async function callOpenAI(prompt: string, apiKey: string): Promise<string> {
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
+  const content = data.choices?.[0]?.message?.content || "{}";
+  return JSON.parse(content);
 }
 
-async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
+// ============================================================
+// Anthropic Call (fallback — no structured output, uses prompt-based JSON)
+// ============================================================
+
+async function callAnthropicFallback(
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string
+): Promise<Record<string, unknown>> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -183,7 +297,8 @@ async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt + "\n\nRespond with ONLY valid JSON matching this structure: {additionalRedFlags: [...], additionalMissingClauses: [...], overallAssessment: string, negotiationPriorities: string[], contractQuality: string}" }],
     }),
   });
 
@@ -193,73 +308,87 @@ async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text || "";
-}
-
-function parseAIResponse(text: string): { aiInsights: string; extraRedFlags: RedFlag[]; extraMissing: MissingClause[] } {
-  // Strip markdown code fences if present
-  let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-
-  // Find the JSON object
+  const text = data.content?.[0]?.text || "{}";
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return { aiInsights: text, extraRedFlags: [], extraMissing: [] };
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      aiInsights: parsed.aiInsights || "AI analysis completed. See additional flags below.",
-      extraRedFlags: (parsed.extraRedFlags || []).map((f: Record<string, unknown>) => ({
-        severity: (f.severity as string) || "medium",
-        clause: (f.clause as string) || "",
-        issue: `🤖 AI: ${f.issue || ""}`,
-        impact: (f.impact as string) || "",
-        hourlyRateImpact: Number(f.hourlyRateImpact) || 0,
-        suggestion: (f.suggestion as string) || "",
-      })),
-      extraMissing: (parsed.extraMissing || []).map((m: Record<string, unknown>) => ({
-        name: (m.name as string) || "",
-        importance: (m.importance as string) || "important",
-        description: `🤖 AI: ${m.description || ""}`,
-        suggestedLanguage: (m.suggestedLanguage as string) || "",
-      })),
-    };
-  } catch {
-    return { aiInsights: text, extraRedFlags: [], extraMissing: [] };
-  }
+  return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 }
 
-// AI-enhanced analysis — supports both OpenAI and Anthropic
+// ============================================================
+// Transform AI Response to Our Format
+// ============================================================
+
+function transformAIResponse(parsed: Record<string, unknown>): {
+  aiInsights: string;
+  extraRedFlags: RedFlag[];
+  extraMissing: MissingClause[];
+} {
+  const flags = (parsed.additionalRedFlags as Array<Record<string, unknown>>) || [];
+  const missing = (parsed.additionalMissingClauses as Array<Record<string, unknown>>) || [];
+  const assessment = (parsed.overallAssessment as string) || "";
+  const priorities = (parsed.negotiationPriorities as string[]) || [];
+  const quality = (parsed.contractQuality as string) || "";
+
+  // Build insights from assessment + priorities + quality
+  let insights = assessment;
+  if (priorities.length > 0) {
+    insights += "\n\n**Negotiation Priorities (in order of impact):**\n" +
+      priorities.map((p, i) => `${i + 1}. ${p}`).join("\n");
+  }
+  if (quality) {
+    insights += `\n\n**Overall Contract Quality:** ${quality.charAt(0).toUpperCase() + quality.slice(1)}`;
+  }
+
+  return {
+    aiInsights: insights,
+    extraRedFlags: flags.map((f) => ({
+      severity: (f.severity as string) || "medium",
+      clause: (f.clause as string) || "",
+      issue: `🤖 AI: ${f.issue || ""}`,
+      impact: (f.impact as string) || "",
+      hourlyRateImpact: Number(f.hourlyRateImpact) || 0,
+      suggestion: (f.suggestion as string) || "",
+    })) as RedFlag[],
+    extraMissing: missing.map((m) => ({
+      name: (m.name as string) || "",
+      importance: (m.importance as string) || "important",
+      description: `🤖 AI: ${m.description || ""}`,
+      suggestedLanguage: (m.suggestedLanguage as string) || "",
+    })) as MissingClause[],
+  };
+}
+
+// ============================================================
+// Main Entry Point — AI-Enhanced Analysis
+// ============================================================
+
 export async function enhanceWithAI(
   input: AnalysisInput,
   baseResult: AnalysisResult,
   manualApiKey?: string
 ): Promise<{ aiInsights: string; extraRedFlags: RedFlag[]; extraMissing: MissingClause[] }> {
-  const prompt = buildPrompt(input, baseResult);
+  const userPrompt = buildUserPrompt(input, baseResult);
 
-  // Priority: manual key from user > env OPENAI > env ANTHROPIC
+  // Determine which provider + key to use
+  let provider: "openai" | "anthropic";
+  let apiKey: string;
+
   if (manualApiKey) {
-    // Detect provider from key format
-    if (manualApiKey.startsWith("sk-ant-")) {
-      const text = await callAnthropic(prompt, manualApiKey);
-      return parseAIResponse(text);
-    } else {
-      const text = await callOpenAI(prompt, manualApiKey);
-      return parseAIResponse(text);
-    }
+    provider = manualApiKey.startsWith("sk-ant-") ? "anthropic" : "openai";
+    apiKey = manualApiKey;
+  } else {
+    const envProvider = getAIProvider();
+    if (!envProvider) throw new Error("No AI API key available");
+    provider = envProvider.provider;
+    apiKey = envProvider.key;
   }
 
-  const envProvider = getAIProvider();
-  if (!envProvider) {
-    throw new Error("No AI API key available");
-  }
+  // Call the appropriate provider
+  const parsed = provider === "openai"
+    ? await callOpenAIStructured(SYSTEM_PROMPT, userPrompt, apiKey)
+    : await callAnthropicFallback(SYSTEM_PROMPT, userPrompt, apiKey);
 
-  const text = envProvider.provider === 'openai'
-    ? await callOpenAI(prompt, envProvider.key)
-    : await callAnthropic(prompt, envProvider.key);
-
-  return parseAIResponse(text);
+  return transformAIResponse(parsed);
 }
 
 export { getCountryContext, getAIProvider, COUNTRY_CONTEXTS, currencyToCountry };
