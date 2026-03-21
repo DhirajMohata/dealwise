@@ -934,73 +934,15 @@ export default function Home() {
       {/* ============================================================
           12. FOOTER
           ============================================================ */}
-      <footer className="border-t border-gray-100 px-6 py-12 lg:px-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col items-center justify-between gap-8 sm:flex-row sm:items-start">
-            {/* Logo + tagline */}
-            <div>
-              <span className="text-[15px] font-semibold text-gray-900">
-                dealwise
-              </span>
-              <p className="mt-1 text-[13px] text-gray-400">
-                Know your real rate
-              </p>
-            </div>
-
-            {/* Links */}
-            <div className="flex flex-wrap items-center justify-center gap-6 text-[13px] text-gray-400">
-              <Link
-                href="/analyze"
-                className="transition-colors hover:text-gray-600"
-              >
-                Analyze
-              </Link>
-              <Link
-                href="/dashboard"
-                className="transition-colors hover:text-gray-600"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/chat"
-                className="transition-colors hover:text-gray-600"
-              >
-                Chat
-              </Link>
-              <Link
-                href="/templates"
-                className="transition-colors hover:text-gray-600"
-              >
-                Templates
-              </Link>
-              <Link
-                href="/privacy"
-                className="transition-colors hover:text-gray-600"
-              >
-                Privacy
-              </Link>
-              <Link
-                href="/terms"
-                className="transition-colors hover:text-gray-600"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/api-docs"
-                className="transition-colors hover:text-gray-600"
-              >
-                API Docs
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-8 sm:flex-row">
-            <p className="text-[12px] text-gray-400">
-              Built with Next.js &middot; TypeScript &middot; AI
-            </p>
-            <p className="text-[12px] text-gray-400">
-              &copy; 2026 dealwise
-            </p>
+      <footer className="border-t border-gray-100 px-6 py-10 lg:px-8">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
+          <span className="text-[13px] text-gray-400">
+            &copy; 2026 dealwise
+          </span>
+          <div className="flex items-center gap-5 text-[13px] text-gray-400">
+            <Link href="/privacy" className="transition-colors hover:text-gray-600">Privacy</Link>
+            <Link href="/terms" className="transition-colors hover:text-gray-600">Terms</Link>
+            <a href="mailto:support@dealwise.app" className="transition-colors hover:text-gray-600">Contact</a>
           </div>
         </div>
       </footer>
