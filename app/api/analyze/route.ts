@@ -86,26 +86,24 @@ export async function POST(request: NextRequest) {
 
     // --- Credit check ---
     const session = await auth();
-    const hasAIKeyFromBody = body.claudeApiKey || getAIProvider();
-    const creditCost = hasAIKeyFromBody ? CREDIT_COSTS.aiAnalyze : CREDIT_COSTS.analyze;
+    const creditCost = CREDIT_COSTS.analyze; // 1 credit per analysis (AI included)
     let creditsRemaining: number | undefined;
 
     if (session?.user?.email) {
-      // Authenticated user: deduct credits
-      const result = await deductCredits(session.user.email, creditCost);
-      if (!result.success) {
+      const creditResult = await deductCredits(session.user.email, creditCost);
+      if (!creditResult.success) {
         return NextResponse.json(
-          { error: result.error || "Not enough credits.", creditsRemaining: result.remaining },
+          { error: creditResult.error || "Not enough credits.", creditsRemaining: creditResult.remaining },
           { status: 402 }
         );
       }
-      creditsRemaining = result.remaining;
+      creditsRemaining = creditResult.remaining;
     } else {
-      // Anonymous user: allow limited free analyses
+      // Anonymous: 5 free AI-powered analyses
       const used = anonymousUsage.get(ip) || 0;
       if (used >= ANONYMOUS_FREE_LIMIT) {
         return NextResponse.json(
-          { error: "Free analysis limit reached. Please sign up to continue.", creditsRemaining: 0 },
+          { error: "Free analysis limit reached. Sign up for 50 free credits.", creditsRemaining: 0 },
           { status: 402 }
         );
       }
@@ -123,48 +121,41 @@ export async function POST(request: NextRequest) {
       claudeApiKey: body.claudeApiKey,
     };
 
-    // Run heuristic analysis
+    // Run regex analysis as fast baseline
     const result = analyzeContract(input);
 
     // Add country-specific legal context
     result.countryContext = getCountryContext(input.currency, input.country);
 
-    // AI-first analysis: AI does the FULL analysis, merged with regex results
-    const hasAIKey = input.claudeApiKey || getAIProvider();
-    if (hasAIKey && adminSettings.features.aiAnalysis !== false) {
+    // AI-FIRST: Always run AI analysis (we have OpenAI key in env)
+    // AI does the FULL analysis — score, flags, extraction. Regex is just backup.
+    const aiProvider = getAIProvider();
+    if (aiProvider && adminSettings.features.aiAnalysis !== false) {
       try {
         const aiResult = await enhanceWithAI(input, result, input.claudeApiKey || undefined);
         result.aiInsights = aiResult.aiInsights;
 
-        // Merge AI red flags with regex flags (deduplicate by issue text)
-        const existingIssues = new Set(result.redFlags.map(f => f.issue.toLowerCase()));
-        aiResult.extraRedFlags.forEach(flag => {
-          const cleanedIssue = flag.issue.replace("\uD83E\uDD16 AI: ", "").toLowerCase();
-          if (!existingIssues.has(cleanedIssue)) {
-            result.redFlags.push(flag);
-            existingIssues.add(cleanedIssue);
-          }
-        });
+        // AI SCORE IS PRIMARY — use AI's score directly (not weighted with regex)
+        result.overallScore = Math.max(0, Math.min(100, aiResult.suggestedScore));
 
-        // Merge AI green flags (AI is more accurate for context, add any new ones)
-        const existingGreenBenefits = new Set(result.greenFlags.map(g => g.benefit.toLowerCase()));
-        aiResult.extraGreenFlags.forEach(flag => {
-          if (!existingGreenBenefits.has(flag.benefit.toLowerCase())) {
-            result.greenFlags.push(flag);
-            existingGreenBenefits.add(flag.benefit.toLowerCase());
-          }
-        });
+        // Use AI's recommendation based on AI score
+        if (result.overallScore >= 65) result.recommendation = "sign";
+        else if (result.overallScore <= 20) result.recommendation = "walk_away";
+        else result.recommendation = "negotiate";
 
-        // Merge AI missing clauses (deduplicate by name)
-        const existingMissing = new Set(result.missingClauses.map(m => m.name.toLowerCase()));
-        aiResult.extraMissing.forEach(clause => {
-          if (!existingMissing.has(clause.name.toLowerCase())) {
-            result.missingClauses.push(clause);
-            existingMissing.add(clause.name.toLowerCase());
-          }
-        });
+        // REPLACE regex flags with AI flags (AI understands context better)
+        // Keep regex flags only if AI found fewer (fallback)
+        if (aiResult.extraRedFlags.length > 0) {
+          result.redFlags = aiResult.extraRedFlags;
+        }
+        if (aiResult.extraGreenFlags.length > 0) {
+          result.greenFlags = aiResult.extraGreenFlags;
+        }
+        if (aiResult.extraMissing.length > 0) {
+          result.missingClauses = aiResult.extraMissing;
+        }
 
-        // Use AI's detectedInfo for contract type, price, jurisdiction
+        // Use AI's detected info for contract type, price, jurisdiction
         if (aiResult.detectedInfo.contractType && aiResult.detectedInfo.contractType !== "unknown") {
           result.contractType = aiResult.detectedInfo.contractType;
         }
@@ -173,17 +164,17 @@ export async function POST(request: NextRequest) {
         }
         if (aiResult.detectedInfo.hourlyRate != null) {
           result.detectedRate = aiResult.detectedInfo.hourlyRate;
+          // Update nominal rate from AI detection
+          if (aiResult.detectedInfo.hourlyRate > 0) {
+            result.nominalHourlyRate = aiResult.detectedInfo.hourlyRate;
+          }
         }
 
-        // Final score = weighted: 40% regex + 60% AI
-        const finalScore = Math.round(
-          (result.overallScore * 0.4) + (aiResult.suggestedScore * 0.6)
-        );
-        result.overallScore = Math.max(0, Math.min(100, finalScore));
-
-      } catch {
-        // AI analysis failed — still return heuristic results
-        result.aiInsights = "AI enhancement is temporarily unavailable. Results below are from heuristic analysis.";
+      } catch (aiError: unknown) {
+        // AI failed — fall back to regex-only results
+        const msg = aiError instanceof Error ? aiError.message : String(aiError);
+        console.error("[AI Analysis Error]", msg);
+        result.aiInsights = `AI analysis failed: ${msg.substring(0, 200)}. Results are from pattern-matching analysis only.`;
       }
     }
 

@@ -201,15 +201,15 @@ const ANALYSIS_SCHEMA = {
       type: "object" as const,
       properties: {
         contractType: { type: "string" as const },
-        totalPrice: { type: ["number", "null"] as const },
-        hourlyRate: { type: ["number", "null"] as const },
+        totalPrice: { type: "number" as const, description: "Total price in contract, or 0 if not found" },
+        hourlyRate: { type: "number" as const, description: "Hourly rate in contract, or 0 if not found" },
         currency: { type: "string" as const },
         paymentTerms: { type: "string" as const },
         clientName: { type: "string" as const },
         contractorName: { type: "string" as const },
         jurisdiction: { type: "string" as const },
       },
-      required: ["contractType", "currency", "paymentTerms", "clientName", "contractorName", "jurisdiction"] as const,
+      required: ["contractType", "totalPrice", "hourlyRate", "currency", "paymentTerms", "clientName", "contractorName", "jurisdiction"] as const,
       additionalProperties: false,
     },
     allRedFlags: {
