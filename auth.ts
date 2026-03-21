@@ -36,7 +36,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             .single();
 
           if (existing) {
-            throw new Error("User already exists. Please login instead.")
+            return null
           }
 
           const hashedPassword = hashPassword(password)
@@ -49,7 +49,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           const { error } = await supabase.from('users').insert(newUser);
           if (error) {
-            throw new Error("Failed to create account. Please try again.")
+            return null
           }
 
           // Send welcome email (non-blocking)
@@ -66,7 +66,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .single();
 
         if (!user || !bcrypt.compareSync(password, user.password)) {
-          throw new Error("Invalid email or password.")
+          return null
         }
         return { id: user.id, name: user.name, email: user.email }
       },
