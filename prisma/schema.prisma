@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  image     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Credit {
+  email      String   @id
+  credits    Int      @default(50)
+  totalUsed  Int      @default(0) @map("total_used")
+  plan       String   @default("free")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+
+  @@map("credits")
+}
+
+model Analysis {
+  id              String   @id @default(uuid())
+  userEmail       String?  @map("user_email")
+  contractSnippet String?  @map("contract_snippet")
+  overallScore    Int?     @map("overall_score")
+  recommendation  String?
+  nominalRate     Float?   @map("nominal_rate")
+  effectiveRate   Float?   @map("effective_rate")
+  rateReduction   Float?   @map("rate_reduction")
+  currency        String   @default("USD")
+  contractType    String?  @map("contract_type")
+  fullResult      Json?    @map("full_result")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userEmail])
+  @@index([createdAt(sort: Desc)])
+  @@map("analyses")
+}
+
+model AdminSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("admin_settings")
+}
+
+model ContractVersion {
+  id            String   @id @default(uuid())
+  userEmail     String?  @map("user_email")
+  contractName  String?  @map("contract_name")
+  versionNumber Int      @default(1) @map("version_number")
+  analysisId    String?  @map("analysis_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("contract_versions")
+}
