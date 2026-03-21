@@ -1016,7 +1016,7 @@ export default function TemplatesPage() {
 
   return (
     <ProtectedRoute>
-    <div className="min-h-screen bg-[#FAFBFE]">
+    <div className="min-h-screen bg-white">
       <Nav />
 
       <main className="mx-auto max-w-7xl px-6 py-8">
@@ -1024,7 +1024,7 @@ export default function TemplatesPage() {
         <div className="mb-8">
           <Link
             href="/"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#4B5563] transition-colors hover:text-[#111827]"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Home
@@ -1034,10 +1034,10 @@ export default function TemplatesPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-3xl font-bold tracking-tight text-[#111827]">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
               Contract Templates
             </h1>
-            <p className="mt-2 max-w-2xl text-base text-[#6B7280]">
+            <p className="mt-2 max-w-2xl text-base text-gray-500">
               Freelancer-friendly templates you can use and customize. Each template includes
               comprehensive clauses that protect your interests.
             </p>
@@ -1052,7 +1052,7 @@ export default function TemplatesPage() {
           className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <Filter className="mr-1 h-4 w-4 text-[#9CA3AF]" />
+            <Filter className="mr-1 h-4 w-4 text-gray-400" />
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
@@ -1060,7 +1060,7 @@ export default function TemplatesPage() {
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
                   activeCategory === cat
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white text-[#4B5563] border border-[#E5E7EB] hover:border-indigo-200 hover:text-[#111827]'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-200 hover:text-gray-900'
                 }`}
               >
                 {cat}
@@ -1069,13 +1069,13 @@ export default function TemplatesPage() {
           </div>
 
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Search templates..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2 pl-10 pr-4 text-sm text-[#111827] placeholder-[#9CA3AF] outline-none transition-colors focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 sm:w-64"
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 sm:w-64"
             />
           </div>
         </motion.div>
@@ -1083,9 +1083,9 @@ export default function TemplatesPage() {
         {/* Template Grid */}
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <FileText className="mb-4 h-12 w-12 text-[#D1D5DB]" />
-            <p className="text-lg font-medium text-[#6B7280]">No templates found</p>
-            <p className="text-sm text-[#9CA3AF]">Try a different category or search term</p>
+            <FileText className="mb-4 h-12 w-12 text-gray-300" />
+            <p className="text-lg font-medium text-gray-500">No templates found</p>
+            <p className="text-sm text-gray-400">Try a different category or search term</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -1102,7 +1102,7 @@ export default function TemplatesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.4, delay: i * 0.05 }}
-                    className="group flex flex-col rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md"
+                    className="group flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md"
                   >
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">
@@ -1113,15 +1113,15 @@ export default function TemplatesPage() {
                       </span>
                     </div>
 
-                    <h3 className="mb-2 text-lg font-semibold text-[#111827]">{template.name}</h3>
-                    <p className="mb-6 flex-1 text-sm leading-relaxed text-[#6B7280]">
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900">{template.name}</h3>
+                    <p className="mb-6 flex-1 text-sm leading-relaxed text-gray-500">
                       {template.description}
                     </p>
 
                     <div className="flex gap-2">
                       <button
                         onClick={() => copyTemplate(template)}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-medium text-[#4B5563] transition-all hover:bg-[#F3F4F8] hover:text-[#111827]"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-gray-900"
                       >
                         {copiedId === template.id ? (
                           <>
@@ -1137,7 +1137,7 @@ export default function TemplatesPage() {
                       </button>
                       <button
                         onClick={() => analyzeTemplate(template)}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
                       >
                         <ArrowRight className="h-4 w-4" />
                         Analyze
@@ -1155,17 +1155,17 @@ export default function TemplatesPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-12 rounded-2xl border border-[#E5E7EB] bg-gradient-to-r from-indigo-50 to-purple-50 p-8 text-center"
+          className="mt-12 rounded-2xl border border-gray-200 bg-indigo-50 p-8 text-center"
         >
-          <h3 className="mb-2 text-lg font-semibold text-[#111827]">
+          <h3 className="mb-2 text-lg font-semibold text-gray-900">
             Have your own contract?
           </h3>
-          <p className="mb-5 text-sm text-[#6B7280]">
+          <p className="mb-5 text-sm text-gray-500">
             Paste any contract into our analyzer to get a detailed score and negotiation recommendations.
           </p>
           <Link
             href="/analyze"
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
+            className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
           >
             Analyze a Contract
             <ArrowRight className="h-4 w-4" />

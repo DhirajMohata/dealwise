@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Sparkles, Zap, Crown } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { ArrowLeft, Check, Sparkles, Zap, Crown, Loader2, CheckCircle } from 'lucide-react';
 import Nav from '@/components/Nav';
 import { CREDIT_PACKAGES } from '@/lib/stripe';
 
@@ -13,27 +15,69 @@ const PACKAGE_COLORS = [
 ];
 
 export default function PricingPage() {
+  const { data: session } = useSession();
+  const [joiningPlan, setJoiningPlan] = useState<string | null>(null);
+  const [joinedPlans, setJoinedPlans] = useState<Set<string>>(new Set());
+  const [error, setError] = useState('');
+
+  async function handleJoinWaitlist(planLabel: string) {
+    setError('');
+    setJoiningPlan(planLabel);
+
+    try {
+      const email = session?.user?.email || '';
+      const name = session?.user?.name || '';
+
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          subject: `Waitlist: ${planLabel}`,
+          message: `User wants to join the waitlist for the ${planLabel} plan.`,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to join waitlist');
+      }
+
+      setJoinedPlans((prev) => new Set(prev).add(planLabel));
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setJoiningPlan(null);
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#FAFBFE]">
+    <div className="min-h-screen bg-white">
       <Nav />
 
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-24 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-[#9CA3AF] transition-colors hover:text-[#4B5563]"
+          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
         <div className="mb-12 text-center">
-          <h1 className="text-3xl font-bold text-[#111827] sm:text-4xl">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
             Simple, Credit-Based Pricing
           </h1>
-          <p className="mt-3 text-[#9CA3AF]">
-            Every new account gets <span className="font-semibold text-[#4B5563]">50 free credits</span>. Buy more when you need them.
+          <p className="mt-3 text-gray-400">
+            Every new account gets <span className="font-semibold text-gray-600">50 free credits</span>. Buy more when you need them.
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-center text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="grid gap-6 sm:grid-cols-3">
           {CREDIT_PACKAGES.map((pkg, i) => {
@@ -41,6 +85,8 @@ export default function PricingPage() {
             const colors = PACKAGE_COLORS[i];
             const perCredit = (pkg.price / 100 / pkg.credits).toFixed(3);
             const isBestValue = i === CREDIT_PACKAGES.length - 1;
+            const isJoined = joinedPlans.has(pkg.label);
+            const isJoining = joiningPlan === pkg.label;
 
             return (
               <div
@@ -59,15 +105,15 @@ export default function PricingPage() {
                   <div className={`rounded-xl ${colors.badge} p-2.5`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h2 className="text-lg font-semibold text-[#111827]">{pkg.label}</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">{pkg.label}</h2>
                 </div>
 
                 <div className="mb-1">
-                  <span className="text-3xl font-bold text-[#111827]">{pkg.priceLabel}</span>
+                  <span className="text-3xl font-bold text-gray-900">{pkg.priceLabel}</span>
                 </div>
-                <p className="mb-6 text-xs text-[#9CA3AF]">${perCredit} per credit</p>
+                <p className="mb-6 text-xs text-gray-400">${perCredit} per credit</p>
 
-                <ul className="mb-6 space-y-2 text-sm text-[#4B5563]">
+                <ul className="mb-6 space-y-2 text-sm text-gray-600">
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500" />
                     {pkg.credits} contract analyses
@@ -86,28 +132,43 @@ export default function PricingPage() {
                   </li>
                 </ul>
 
-                <button
-                  disabled
-                  className="w-full cursor-not-allowed rounded-xl bg-gray-200 px-6 py-3 text-sm font-semibold text-gray-500"
-                >
-                  Coming Soon
-                </button>
+                {isJoined ? (
+                  <div className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-6 py-3 text-sm font-semibold text-emerald-700">
+                    <CheckCircle className="h-4 w-4" />
+                    You&apos;re on the list!
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleJoinWaitlist(pkg.label)}
+                    disabled={isJoining}
+                    className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                  >
+                    {isJoining ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Joining...
+                      </span>
+                    ) : (
+                      'Join Waitlist'
+                    )}
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
 
-        <div className="mt-12 rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center">
-          <h3 className="text-lg font-semibold text-[#111827]">Free Tier</h3>
-          <p className="mt-2 text-sm text-[#9CA3AF]">
-            Every account starts with <span className="font-semibold text-[#4B5563]">50 free credits</span> &mdash; no credit card required.
+        <div className="mt-12 rounded-2xl border border-gray-200 bg-white p-8 text-center">
+          <h3 className="text-lg font-semibold text-gray-900">Free Tier</h3>
+          <p className="mt-2 text-sm text-gray-400">
+            Every account starts with <span className="font-semibold text-gray-600">50 free credits</span> &mdash; no credit card required.
           </p>
-          <p className="mt-1 text-sm text-[#9CA3AF]">
+          <p className="mt-1 text-sm text-gray-400">
             1 credit = 1 basic analysis. AI-enhanced analysis costs 2 credits.
           </p>
           <Link
             href="/analyze"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
           >
             <Sparkles className="h-4 w-4" />
             Start Analyzing Free

@@ -210,7 +210,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
   return (
     <button
       onClick={copy}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50"
     >
       {copied ? (
         <>
@@ -231,7 +231,7 @@ function SectionHeader({
   icon: Icon,
   title,
   count,
-  color = 'text-[#111827]',
+  color = 'text-gray-900',
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
@@ -241,9 +241,9 @@ function SectionHeader({
   return (
     <div className="mb-6 flex items-center gap-3">
       <Icon className={`h-5 w-5 ${color}`} />
-      <h2 className="text-lg font-semibold text-[#111827]">{title}</h2>
+      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
       {count !== undefined && (
-        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-[#4B5563]">
+        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
           {count}
         </span>
       )}
@@ -301,7 +301,7 @@ function ScoreCircle({ score }: { score: number }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`text-4xl font-bold ${colors.text}`}>{displayed}</span>
-          <span className="text-xs text-[#9CA3AF]">/ 100</span>
+          <span className="text-xs text-gray-400">/ 100</span>
         </div>
       </div>
       <span className={`text-sm font-medium ${colors.text}`}>{colors.label}</span>
@@ -348,8 +348,9 @@ export default function AnalyzePage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showOptional, setShowOptional] = useState(false);
 
-  /* ---------- progress steps state (FIX 4) ---------- */
-  const [analysisStep, setAnalysisStep] = useState(0);
+  /* ---------- loading timer state ---------- */
+  const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   /* ---------- clause filter states (FIX 1) ---------- */
   const [redFlagFilter, setRedFlagFilter] = useState<string>('all');
@@ -412,6 +413,15 @@ export default function AnalyzePage() {
     if (settings.defaultCurrency) setCurrency(settings.defaultCurrency);
     if (settings.defaultCountry) setCountry(settings.defaultCountry);
   }, []);
+
+  /* ---------- elapsed time counter for loading ---------- */
+  useEffect(() => {
+    if (!loading || !analysisStartTime) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - analysisStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading, analysisStartTime]);
 
   /* ---------- fetch user credits ---------- */
   useEffect(() => {
@@ -514,20 +524,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
     setErrors({});
   }
 
-  /* ---------- progress steps helper (FIX 4) ---------- */
-  function startProgressSteps() {
-    setAnalysisStep(0);
-    const t1 = setTimeout(() => setAnalysisStep(1), 1000);
-    const t2 = setTimeout(() => setAnalysisStep(2), 2000);
-    const t3 = setTimeout(() => setAnalysisStep(3), 3000);
-    const t4 = setTimeout(() => setAnalysisStep(4), 5000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-    };
-  }
+  /* ---------- loading timer helper ---------- */
 
   /* ---------- submit ---------- */
   async function handleSubmit(e: React.FormEvent) {
@@ -537,7 +534,8 @@ Both parties agree to maintain confidentiality of proprietary information shared
     if (!validateForm()) return;
 
     setLoading(true);
-    const cleanupSteps = startProgressSteps();
+    setAnalysisStartTime(Date.now());
+    setElapsedSeconds(0);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -620,8 +618,8 @@ Both parties agree to maintain confidentiality of proprietary information shared
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
-      setAnalysisStep(0);
-      cleanupSteps();
+      setAnalysisStartTime(null);
+      setElapsedSeconds(0);
     }
   }
 
@@ -862,7 +860,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFBFE]">
+    <div className="min-h-screen bg-white">
       <Nav />
       <HistoryPanel onSelectResult={handleLoadFromHistory} />
 
@@ -870,7 +868,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
         {/* Back link */}
         <Link
           href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-[#9CA3AF] transition-colors hover:text-[#4B5563]"
+          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
@@ -890,12 +888,12 @@ Both parties agree to maintain confidentiality of proprietary information shared
             >
               {/* Page header */}
               <div className="mb-10">
-                <h1 className="text-3xl font-bold text-[#111827] sm:text-4xl">
+                <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
                   Analyze Your Deal
                 </h1>
-                <p className="mt-2 max-w-2xl text-[#9CA3AF]">
+                <p className="mt-2 max-w-2xl text-gray-400">
                   Paste your contract and deal details below. Our AI will uncover hidden costs, red flags, and scope-creep risks so you know your{' '}
-                  <span className="text-[#4B5563]">real</span> hourly rate.
+                  <span className="text-gray-600">real</span> hourly rate.
                 </p>
               </div>
 
@@ -916,11 +914,11 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
               <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
                 {/* ---- Section A: Contract Text ---- */}
-                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm sm:p-8">
-                  <label htmlFor="contract" className="mb-1 block text-sm font-semibold text-[#111827]">
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+                  <label htmlFor="contract" className="mb-1 block text-sm font-semibold text-gray-900">
                     Your Contract
                   </label>
-                  <p className="mb-4 text-xs text-[#9CA3AF]">
+                  <p className="mb-4 text-xs text-gray-400">
                     Upload a file or paste the full contract text. Your data is processed securely and never stored.
                   </p>
 
@@ -940,8 +938,8 @@ Both parties agree to maintain confidentiality of proprietary information shared
                             <FileText className="h-5 w-5 text-emerald-600" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-[#111827]">{uploadedFile.name}</p>
-                            <p className="text-xs text-[#9CA3AF]">{uploadedFile.pages} page{uploadedFile.pages !== 1 ? 's' : ''} &middot; {uploadedFile.size} &middot; Parsed successfully</p>
+                            <p className="text-sm font-medium text-gray-900">{uploadedFile.name}</p>
+                            <p className="text-xs text-gray-400">{uploadedFile.pages} page{uploadedFile.pages !== 1 ? 's' : ''} &middot; {uploadedFile.size} &middot; Parsed successfully</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -949,7 +947,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                           <button
                             type="button"
                             onClick={() => { setUploadMode('paste'); setUploadedFile(null); setContractText(''); }}
-                            className="rounded-lg p-1.5 text-[#9CA3AF] hover:bg-gray-100 hover:text-[#4B5563] transition-colors"
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -958,7 +956,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                       {autoDetected && (
                         <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
                           <p className="text-xs font-medium text-indigo-600 mb-2">Auto-detected from your contract:</p>
-                          <div className="grid grid-cols-2 gap-2 text-xs text-[#4B5563]">
+                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                             {autoDetected.detectedPrice && <div>Price: {autoDetected.detectedCurrency || '$'}{autoDetected.detectedPrice.toLocaleString()}</div>}
                             {autoDetected.contractType && <div>Type: {autoDetected.contractType}</div>}
                             {autoDetected.estimatedHours && <div>Est. hours: {autoDetected.estimatedHours}</div>}
@@ -981,7 +979,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                         className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 transition-all ${
                           isDragging
                             ? 'border-indigo-500 bg-indigo-50'
-                            : 'border-[#E5E7EB] bg-[#F3F4F8] hover:border-indigo-300 hover:bg-indigo-50/30'
+                            : 'border-gray-200 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/30'
                         }`}
                       >
                         <input
@@ -1010,12 +1008,12 @@ Both parties agree to maintain confidentiality of proprietary information shared
                           </div>
                         ) : (
                           <>
-                            <Upload className={`h-8 w-8 ${isDragging ? 'text-indigo-500' : 'text-[#9CA3AF]'}`} />
+                            <Upload className={`h-8 w-8 ${isDragging ? 'text-indigo-500' : 'text-gray-400'}`} />
                             <div className="text-center">
-                              <p className={`text-sm font-medium ${isDragging ? 'text-indigo-600' : 'text-[#4B5563]'}`}>
+                              <p className={`text-sm font-medium ${isDragging ? 'text-indigo-600' : 'text-gray-600'}`}>
                                 Upload PDF, DOCX, or TXT
                               </p>
-                              <p className="mt-1 text-xs text-[#9CA3AF]">
+                              <p className="mt-1 text-xs text-gray-400">
                                 Drag and drop or click to browse (max 5MB)
                               </p>
                             </div>
@@ -1024,9 +1022,9 @@ Both parties agree to maintain confidentiality of proprietary information shared
                       </div>
 
                       <div className="relative my-4 flex items-center">
-                        <div className="flex-grow border-t border-[#E5E7EB]" />
-                        <span className="mx-4 text-xs text-[#9CA3AF]">or paste your contract text</span>
-                        <div className="flex-grow border-t border-[#E5E7EB]" />
+                        <div className="flex-grow border-t border-gray-200" />
+                        <span className="mx-4 text-xs text-gray-400">or paste your contract text</span>
+                        <div className="flex-grow border-t border-gray-200" />
                       </div>
 
                       <textarea
@@ -1035,7 +1033,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                         value={contractText}
                         onChange={(e) => { setContractText(e.target.value); clearError('contractText'); }}
                         placeholder="Paste your contract, agreement, or terms here..."
-                        className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.contractText ? 'border-red-400' : 'border-[#E5E7EB]'}`}
+                        className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.contractText ? 'border-red-400' : 'border-gray-200'}`}
                       />
                     </>
                   )}
@@ -1045,13 +1043,13 @@ Both parties agree to maintain confidentiality of proprietary information shared
                 </div>
 
                 {/* ---- Section B: Deal Details ---- */}
-                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm sm:p-8">
-                  <h2 className="mb-1 text-sm font-semibold text-[#111827]">Your Deal Details</h2>
-                  <p className="mb-6 text-xs text-[#9CA3AF]">Tell us about the project so we can calculate your real rate.</p>
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+                  <h2 className="mb-1 text-sm font-semibold text-gray-900">Your Deal Details</h2>
+                  <p className="mb-6 text-xs text-gray-400">Tell us about the project so we can calculate your real rate.</p>
 
                   {/* Always visible: Project Scope */}
                   <div>
-                    <label htmlFor="scope" className="mb-1.5 block text-xs font-medium text-[#4B5563]">
+                    <label htmlFor="scope" className="mb-1.5 block text-xs font-medium text-gray-600">
                       Project Scope
                     </label>
                     <textarea
@@ -1060,7 +1058,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                       value={projectScope}
                       onChange={(e) => { setProjectScope(e.target.value); clearError('projectScope'); }}
                       placeholder="Briefly describe the work — e.g., 'Design and build a 5-page React website with CMS integration'"
-                      className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.projectScope ? 'border-red-400' : 'border-[#E5E7EB]'}`}
+                      className={`w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${errors.projectScope ? 'border-red-400' : 'border-gray-200'}`}
                     />
                     {errors.projectScope && (
                       <p className="mt-1.5 text-xs text-red-600">{errors.projectScope}</p>
@@ -1088,11 +1086,11 @@ Both parties agree to maintain confidentiality of proprietary information shared
                         <div className="mt-4 grid gap-4 sm:grid-cols-2">
                           {/* Quoted Price */}
                           <div>
-                            <label htmlFor="price" className="mb-1.5 block text-xs font-medium text-[#4B5563]">
+                            <label htmlFor="price" className="mb-1.5 block text-xs font-medium text-gray-600">
                               Quoted Price (optional — we&apos;ll auto-detect)
                             </label>
                             <div className="relative">
-                              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#9CA3AF]">
+                              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">
                                 {currencySymbol}
                               </span>
                               <input
@@ -1103,10 +1101,10 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                 value={quotedPrice}
                                 onChange={(e) => { setQuotedPrice(e.target.value); clearError('quotedPrice'); }}
                                 placeholder="5000"
-                                className={`w-full rounded-xl border bg-white py-3 pl-10 pr-4 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${errors.quotedPrice ? 'border-red-400' : 'border-[#E5E7EB]'}`}
+                                className={`w-full rounded-xl border bg-white py-3 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${errors.quotedPrice ? 'border-red-400' : 'border-gray-200'}`}
                               />
                             </div>
-                            <p className="mt-1 text-xs text-[#9CA3AF]">Leave blank and we&apos;ll try to detect from your contract text</p>
+                            <p className="mt-1 text-xs text-gray-400">Leave blank and we&apos;ll try to detect from your contract text</p>
                             {errors.quotedPrice && (
                               <p className="mt-1.5 text-xs text-red-600">{errors.quotedPrice}</p>
                             )}
@@ -1114,7 +1112,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                           {/* Estimated Hours */}
                           <div>
-                            <label htmlFor="hours" className="mb-1.5 block text-xs font-medium text-[#4B5563]">
+                            <label htmlFor="hours" className="mb-1.5 block text-xs font-medium text-gray-600">
                               Estimated Hours (optional)
                             </label>
                             <input
@@ -1125,9 +1123,9 @@ Both parties agree to maintain confidentiality of proprietary information shared
                               value={estimatedHours}
                               onChange={(e) => { setEstimatedHours(e.target.value); clearError('estimatedHours'); }}
                               placeholder="80"
-                              className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${errors.estimatedHours ? 'border-red-400' : 'border-[#E5E7EB]'}`}
+                              className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${errors.estimatedHours ? 'border-red-400' : 'border-gray-200'}`}
                             />
-                            <p className="mt-1 text-xs text-[#9CA3AF]">Leave blank and we&apos;ll try to detect from your contract text</p>
+                            <p className="mt-1 text-xs text-gray-400">Leave blank and we&apos;ll try to detect from your contract text</p>
                             {errors.estimatedHours && (
                               <p className="mt-1.5 text-xs text-red-600">{errors.estimatedHours}</p>
                             )}
@@ -1135,7 +1133,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                           {/* Currency */}
                           <div>
-                            <label htmlFor="currency" className="mb-1.5 block text-xs font-medium text-[#4B5563]">
+                            <label htmlFor="currency" className="mb-1.5 block text-xs font-medium text-gray-600">
                               Currency
                             </label>
                             <div className="relative">
@@ -1143,39 +1141,39 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                 id="currency"
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value)}
-                                className="w-full appearance-none rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 pr-10 text-sm text-[#111827] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                                className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                               >
                                 {CURRENCIES.map((c) => (
-                                  <option key={c.value} value={c.value} className="bg-white text-[#111827]">
+                                  <option key={c.value} value={c.value} className="bg-white text-gray-900">
                                     {c.label}
                                   </option>
                                 ))}
                               </select>
-                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             </div>
                           </div>
 
                           {/* Country */}
                           <div>
-                            <label htmlFor="country" className="mb-1.5 block text-xs font-medium text-[#4B5563]">
-                              Your Country <span className="text-[#9CA3AF]">(for legal context)</span>
+                            <label htmlFor="country" className="mb-1.5 block text-xs font-medium text-gray-600">
+                              Your Country <span className="text-gray-400">(for legal context)</span>
                             </label>
                             <div className="relative">
                               <select
                                 id="country"
                                 value={country}
                                 onChange={(e) => setCountry(e.target.value)}
-                                className="w-full appearance-none rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 pr-10 text-sm text-[#111827] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                                className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                               >
-                                <option value="" className="bg-white text-[#111827]">Auto-detect from currency</option>
-                                <option value="US" className="bg-white text-[#111827]">United States</option>
-                                <option value="IN" className="bg-white text-[#111827]">India</option>
-                                <option value="GB" className="bg-white text-[#111827]">United Kingdom</option>
-                                <option value="EU" className="bg-white text-[#111827]">European Union</option>
-                                <option value="AU" className="bg-white text-[#111827]">Australia</option>
-                                <option value="CA" className="bg-white text-[#111827]">Canada</option>
+                                <option value="" className="bg-white text-gray-900">Auto-detect from currency</option>
+                                <option value="US" className="bg-white text-gray-900">United States</option>
+                                <option value="IN" className="bg-white text-gray-900">India</option>
+                                <option value="GB" className="bg-white text-gray-900">United Kingdom</option>
+                                <option value="EU" className="bg-white text-gray-900">European Union</option>
+                                <option value="AU" className="bg-white text-gray-900">Australia</option>
+                                <option value="CA" className="bg-white text-gray-900">Canada</option>
                               </select>
-                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             </div>
                           </div>
                         </div>
@@ -1207,7 +1205,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                           className="overflow-hidden"
                         >
                           <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-                            <p className="mb-3 text-xs text-[#4B5563]">
+                            <p className="mb-3 text-xs text-gray-600">
                               Add your Claude API key for deeper AI-powered analysis. The key is sent only to Anthropic&apos;s API and never stored.
                             </p>
                             <input
@@ -1215,9 +1213,9 @@ Both parties agree to maintain confidentiality of proprietary information shared
                               value={claudeApiKey}
                               onChange={(e) => setClaudeApiKey(e.target.value)}
                               placeholder="sk-ant-api03-..."
-                              className="w-full rounded-lg border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm text-[#111827] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400"
+                              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400"
                             />
-                            <p className="mt-2 text-[10px] text-[#9CA3AF]">
+                            <p className="mt-2 text-[10px] text-gray-400">
                               Without an API key, you get heuristic analysis (regex-based). With it, you get AI-powered insights from Claude that catch subtle legal nuances.
                             </p>
                           </div>
@@ -1240,61 +1238,22 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                 {/* Loading progress card */}
                 {loading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm"
-                  >
-                    {/* File context */}
-                    {uploadedFile && (
-                      <div className="mb-6 flex items-center gap-3 rounded-xl bg-[#F3F4F8] px-4 py-3">
-                        <FileText className="h-4 w-4 text-[#9CA3AF]" />
-                        <span className="text-sm text-[#4B5563]">Analyzing {uploadedFile.name}...</span>
-                      </div>
-                    )}
-
-                    {/* Progress steps */}
-                    <div className="space-y-4">
-                      {[
-                        { step: 'Parsing contract text', index: 0 },
-                        { step: 'Detecting clauses & red flags', index: 1 },
-                        { step: 'Calculating effective rate', index: 2 },
-                        { step: 'Running AI deep analysis', index: 3 },
-                        { step: 'Generating report', index: 4 },
-                      ].map(({ step, index }) => {
-                        const currentStep = analysisStep;
-                        const isComplete = index < currentStep;
-                        const isCurrent = index === currentStep;
-                        return (
-                          <div key={step} className="flex items-center gap-3">
-                            {isComplete ? (
-                              <CheckCircle className="h-5 w-5 text-emerald-500" />
-                            ) : isCurrent ? (
-                              <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
-                            ) : (
-                              <div className="h-5 w-5 rounded-full border-2 border-[#E5E7EB]" />
-                            )}
-                            <span className={`text-sm ${isComplete ? 'text-emerald-600' : isCurrent ? 'text-indigo-600 font-medium' : 'text-[#9CA3AF]'}`}>
-                              {step}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <p className="mt-6 text-center text-xs text-[#9CA3AF]">This usually takes 10-20 seconds</p>
-                  </motion.div>
+                  <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-600" />
+                    <p className="mt-4 text-sm font-medium text-gray-900">Analyzing your contract...</p>
+                    <p className="mt-1 text-xs text-gray-400">{elapsedSeconds}s elapsed</p>
+                  </div>
                 )}
 
                 {/* Credit Info */}
                 {status === 'authenticated' && userCredits !== null && userPlan !== 'admin' && (
-                  <div className={`rounded-lg border p-3 text-sm ${userCredits < 5 ? 'border-amber-200 bg-amber-50' : 'border-[#E5E7EB] bg-[#FAFBFE]'}`}>
+                  <div className={`rounded-lg border p-3 text-sm ${userCredits < 5 ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white'}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[#4B5563]">
-                        This analysis will use <span className="font-medium text-[#111827]">{claudeApiKey ? '2' : '1'} credit(s)</span>
+                      <span className="text-gray-600">
+                        This analysis will use <span className="font-medium text-gray-900">{claudeApiKey ? '2' : '1'} credit(s)</span>
                       </span>
-                      <span className="text-[#4B5563]">
-                        Balance: <span className="font-medium text-[#111827]">{userCredits}</span>
+                      <span className="text-gray-600">
+                        Balance: <span className="font-medium text-gray-900">{userCredits}</span>
                       </span>
                     </div>
                     {userCredits < 5 && (
@@ -1310,7 +1269,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                 <button
                   type="submit"
                   disabled={loading}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-4 text-base font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-indigo-600 hover:bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
                 >
                   <span className="relative z-10 flex items-center justify-center gap-2">
                     {loading ? (
@@ -1349,15 +1308,15 @@ Both parties agree to maintain confidentiality of proprietary information shared
             >
               {/* Page header */}
               <motion.div variants={fadeUp}>
-                <h1 className="text-3xl font-bold text-[#111827] sm:text-4xl">Analysis Results</h1>
-                <p className="mt-2 text-[#9CA3AF]">
+                <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">Analysis Results</h1>
+                <p className="mt-2 text-gray-400">
                   Here&apos;s what we found in your contract.
                 </p>
               </motion.div>
 
               {/* Result summary headline */}
               <motion.div variants={fadeUp} className="mb-6 text-center">
-                <p className="text-lg font-semibold text-[#111827]">
+                <p className="text-lg font-semibold text-gray-900">
                   Your contract scored <span className={getScoreColor(result.overallScore).text}>{result.overallScore}/100</span>
                   {' — '}
                   we found <span className="text-red-600">{result.redFlags.length} red flag{result.redFlags.length !== 1 ? 's' : ''}</span>
@@ -1369,7 +1328,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
               {/*  TAB BAR                                             */}
               {/* -------------------------------------------------- */}
               <motion.div variants={fadeUp}>
-                <div className="bg-white rounded-xl border border-[#E5E7EB] p-1 inline-flex gap-1">
+                <div className="bg-white rounded-xl border border-gray-200 p-1 inline-flex gap-1">
                   {[
                     { id: 'overview', label: 'Overview', icon: Eye },
                     { id: 'redflags', label: 'Red Flags', icon: ShieldAlert, count: result.redFlags.length },
@@ -1384,14 +1343,14 @@ Both parties agree to maintain confidentiality of proprietary information shared
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition inline-flex items-center gap-2 ${
                         activeTab === tab.id
                           ? 'bg-indigo-50 text-indigo-700'
-                          : 'text-[#9CA3AF] hover:text-[#4B5563] hover:bg-gray-50'
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       <tab.icon className="h-4 w-4" />
                       <span className="hidden sm:inline">{tab.label}</span>
                       {tab.count !== undefined && tab.count > 0 && (
                         <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                          activeTab === tab.id ? 'bg-indigo-200 text-indigo-800' : 'bg-gray-100 text-[#4B5563]'
+                          activeTab === tab.id ? 'bg-indigo-200 text-indigo-800' : 'bg-gray-100 text-gray-600'
                         }`}>
                           {tab.count}
                         </span>
@@ -1418,20 +1377,20 @@ Both parties agree to maintain confidentiality of proprietary information shared
                     {/* Score + Rate Comparison + Recommendation */}
                     <div className="grid gap-6 sm:grid-cols-3">
                       {/* Score */}
-                      <div className="flex items-center justify-center rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+                      <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                         <ScoreCircle score={result.overallScore} />
                       </div>
 
                       {/* Rate Comparison */}
-                      <div className="flex flex-col gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">Rate Comparison</h3>
+                      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Rate Comparison</h3>
 
                         {/* Quoted */}
-                        <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
-                          <p className="text-xs text-[#9CA3AF]">Your Quoted Rate</p>
-                          <p className="text-xl font-bold text-[#111827]">
+                        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                          <p className="text-xs text-gray-400">Your Quoted Rate</p>
+                          <p className="text-xl font-bold text-gray-900">
                             {currencySymbol}{result.nominalHourlyRate.toFixed(2)}
-                            <span className="text-sm font-normal text-[#9CA3AF]">/hr</span>
+                            <span className="text-sm font-normal text-gray-400">/hr</span>
                           </p>
                         </div>
 
@@ -1478,8 +1437,8 @@ Both parties agree to maintain confidentiality of proprietary information shared
                         const config = getRecommendationConfig(result.recommendation);
                         const RecIcon = getRecommendationIcon(result.recommendation);
                         return (
-                          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-                            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">Recommendation</h3>
+                          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recommendation</h3>
                             <div
                               className={`flex items-center gap-3 rounded-xl border px-6 py-4 ${config.bg} ${config.border}`}
                             >
@@ -1509,8 +1468,8 @@ Both parties agree to maintain confidentiality of proprietary information shared
                     {/* Summary */}
                     <div>
                       <SectionHeader icon={Info} title="Analysis Summary" color="text-indigo-600" />
-                      <div className="rounded-2xl border border-[#E5E7EB] bg-[#F3F4F8] p-6">
-                        <p className="text-sm leading-relaxed text-[#4B5563]">{result.summary}</p>
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                        <p className="text-sm leading-relaxed text-gray-600">{result.summary}</p>
                       </div>
                     </div>
 
@@ -1614,7 +1573,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                           {/* Filter bar */}
                           <div className="flex flex-wrap items-center gap-2">
-                            <Filter className="h-4 w-4 text-[#9CA3AF]" />
+                            <Filter className="h-4 w-4 text-gray-400" />
                             {(['all', 'critical', 'high', 'medium', 'low'] as const).map((sev) => {
                               const count = severityCounts[sev];
                               if (sev !== 'all' && count === 0) return null;
@@ -1627,7 +1586,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
                                     isActive
                                       ? sev === 'all'
-                                        ? 'bg-gray-100 text-[#111827] ring-1 ring-gray-300'
+                                        ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
                                         : sev === 'critical'
                                         ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
                                         : sev === 'high'
@@ -1635,7 +1594,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                         : sev === 'medium'
                                         ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
                                         : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                                      : 'bg-white border border-[#E5E7EB] text-[#4B5563] hover:bg-gray-50'
+                                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                                   }`}
                                 >
                                   {sev === 'all' ? 'All' : sev}
@@ -1662,7 +1621,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                                     layout
-                                    className={`rounded-xl border border-[#E5E7EB] border-l-4 ${leftBorder} bg-white p-5 shadow-sm`}
+                                    className={`rounded-xl border border-gray-200 border-l-4 ${leftBorder} bg-white p-5 shadow-sm`}
                                   >
                                     {/* Top row: severity + rate impact */}
                                     <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -1680,19 +1639,19 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                                     {/* Clause quote */}
                                     <div className="mb-4 rounded-lg bg-gray-50 p-3">
-                                      <p className="text-sm font-mono text-[#4B5563] italic">
+                                      <p className="text-sm font-mono text-gray-600 italic">
                                         &ldquo;{flag.clause}&rdquo;
                                       </p>
                                     </div>
 
                                     {/* Issue & Impact */}
                                     <div className="mb-4 space-y-2 text-sm">
-                                      <p className="text-[#4B5563]">
-                                        <span className="font-semibold text-[#111827]">Issue: </span>
+                                      <p className="text-gray-600">
+                                        <span className="font-semibold text-gray-900">Issue: </span>
                                         {flag.issue}
                                       </p>
-                                      <p className="text-[#4B5563]">
-                                        <span className="font-semibold text-[#111827]">Financial Impact: </span>
+                                      <p className="text-gray-600">
+                                        <span className="font-semibold text-gray-900">Financial Impact: </span>
                                         {flag.impact}
                                       </p>
                                     </div>
@@ -1703,14 +1662,14 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                         <span className="text-xs font-semibold text-emerald-700">Suggested Counter-Proposal</span>
                                         <CopyButton text={flag.suggestion} label="Copy" />
                                       </div>
-                                      <p className="text-sm leading-relaxed text-[#4B5563]">{flag.suggestion}</p>
+                                      <p className="text-sm leading-relaxed text-gray-600">{flag.suggestion}</p>
                                     </div>
                                   </motion.div>
                                 );
                               })}
                             </AnimatePresence>
                             {filteredRedFlags.length === 0 && (
-                              <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-8 text-center text-sm text-[#9CA3AF]">
+                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
                                 No red flags match this filter.
                               </div>
                             )}
@@ -1759,7 +1718,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                           {/* Filter bar */}
                           <div className="mb-5 flex flex-wrap items-center gap-2">
-                            <Filter className="h-4 w-4 text-[#9CA3AF]" />
+                            <Filter className="h-4 w-4 text-gray-400" />
                             {(['all', 'critical', 'important', 'nice_to_have'] as const).map((imp) => {
                               const count = importanceCounts[imp];
                               if (imp !== 'all' && count === 0) return null;
@@ -1772,13 +1731,13 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                                     isActive
                                       ? imp === 'all'
-                                        ? 'bg-gray-100 text-[#111827] ring-1 ring-gray-300'
+                                        ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
                                         : imp === 'critical'
                                         ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
                                         : imp === 'important'
                                         ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
                                         : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                                      : 'bg-white border border-[#E5E7EB] text-[#4B5563] hover:bg-gray-50'
+                                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                                   }`}
                                 >
                                   {importanceLabels[imp]}
@@ -1804,15 +1763,15 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                                     layout
-                                    className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm"
+                                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
                                   >
                                     <div className="mb-3 flex flex-wrap items-center gap-3">
-                                      <h3 className="text-sm font-semibold text-[#111827]">{clause.name}</h3>
+                                      <h3 className="text-sm font-semibold text-gray-900">{clause.name}</h3>
                                       <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${imp.bg} ${imp.text} ${imp.border}`}>
                                         {clause.importance}
                                       </span>
                                     </div>
-                                    <p className="mb-4 text-sm text-[#4B5563]">{clause.description}</p>
+                                    <p className="mb-4 text-sm text-gray-600">{clause.description}</p>
 
                                     {/* Suggested language */}
                                     <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
@@ -1820,14 +1779,14 @@ Both parties agree to maintain confidentiality of proprietary information shared
                                         <span className="text-xs font-semibold text-indigo-700">Add This Language</span>
                                         <CopyButton text={clause.suggestedLanguage} label="Copy" />
                                       </div>
-                                      <p className="text-sm leading-relaxed text-[#4B5563]">{clause.suggestedLanguage}</p>
+                                      <p className="text-sm leading-relaxed text-gray-600">{clause.suggestedLanguage}</p>
                                     </div>
                                   </motion.div>
                                 );
                               })}
                             </AnimatePresence>
                             {filteredClauses.length === 0 && (
-                              <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-8 text-center text-sm text-[#9CA3AF]">
+                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
                                 No missing clauses match this filter.
                               </div>
                             )}
@@ -1852,7 +1811,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                               className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
                             >
                               <p className="mb-2 text-sm font-semibold text-emerald-700">{flag.clause}</p>
-                              <p className="text-sm leading-relaxed text-[#4B5563]">{flag.benefit}</p>
+                              <p className="text-sm leading-relaxed text-gray-600">{flag.benefit}</p>
                             </div>
                           ))}
                         </div>
@@ -1860,7 +1819,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                         <div className="rounded-xl border border-red-200 bg-red-50 p-6">
                           <div className="flex items-start gap-3">
                             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                            <p className="text-sm leading-relaxed text-[#4B5563]">
+                            <p className="text-sm leading-relaxed text-gray-600">
                               No positive protections found in this contract. This is a red flag in itself — a well-drafted contract should include protections for both parties.
                             </p>
                           </div>
@@ -1888,13 +1847,13 @@ Both parties agree to maintain confidentiality of proprietary information shared
                             <SectionHeader icon={Sparkles} title="AI-Powered Deep Analysis" color="text-indigo-600" />
                             <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6">
                               <div
-                                className="text-sm leading-relaxed text-[#4B5563] [&_strong]:font-semibold [&_strong]:text-[#111827] [&_em]:italic [&_em]:text-[#111827] [&_ul]:my-2 [&_li]:text-[#4B5563]"
+                                className="text-sm leading-relaxed text-gray-600 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_em]:italic [&_em]:text-gray-900 [&_ul]:my-2 [&_li]:text-gray-600"
                                 dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(result.aiInsights) }}
                               />
                             </div>
                           </section>
                         ) : (
-                          <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-8 text-center text-sm text-[#9CA3AF]">
+                          <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
                             AI insights are available when you provide a Claude API key. Enable it in the analysis form to get deeper contract analysis.
                           </div>
                         )}
@@ -1906,7 +1865,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                       <section>
                         <SectionHeader icon={Info} title="Legal Context for Your Country" color="text-blue-600" />
                         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
-                          <div className="text-sm leading-relaxed text-[#4B5563] whitespace-pre-line">
+                          <div className="text-sm leading-relaxed text-gray-600 whitespace-pre-line">
                             {result.countryContext}
                           </div>
                         </div>
@@ -1924,16 +1883,16 @@ Both parties agree to maintain confidentiality of proprietary information shared
                             return (
                               <div
                                 key={i}
-                                className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm"
+                                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
                               >
                                 <div className="mb-3 flex items-center gap-2">
                                   <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${lk.bg} ${lk.text} ${lk.border}`}>
                                     {risk.likelihood} likelihood
                                   </span>
                                 </div>
-                                <p className="mb-2 text-sm text-[#111827]">{risk.risk}</p>
-                                <p className="text-sm text-[#9CA3AF]">
-                                  <span className="font-semibold text-[#4B5563]">Potential cost: </span>
+                                <p className="mb-2 text-sm text-gray-900">{risk.risk}</p>
+                                <p className="text-sm text-gray-400">
+                                  <span className="font-semibold text-gray-600">Potential cost: </span>
                                   {risk.potentialCost}
                                 </p>
                               </div>
@@ -1961,7 +1920,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                           {getAnnotatedText(contractText, result.redFlags)}
                         </div>
                       ) : (
-                        <div className="rounded-xl border border-[#E5E7EB] bg-[#FAFBFE] px-5 py-8 text-center text-sm text-[#9CA3AF]">
+                        <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
                           Original contract text is not available. This tab works when you paste or upload a contract directly.
                         </div>
                       )}
@@ -1976,7 +1935,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
               <motion.div variants={fadeUp} className="flex flex-wrap gap-4 pt-2">
                 <button
                   onClick={handleReset}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg"
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Analyze Another Contract
@@ -1987,7 +1946,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                     const { exportAnalysisPDF } = await import('@/lib/export-pdf');
                     await exportAnalysisPDF(result, currencySymbol);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   <FileDown className="h-4 w-4" />
                   Export PDF
@@ -2060,7 +2019,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   <FileDown className="h-4 w-4" />
                   Download .txt
@@ -2070,7 +2029,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   onClick={() => {
                     import('@/lib/export-docx').then(m => m.exportAnalysisDOCX(result, currencySymbol));
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   <FileText className="h-4 w-4" />
                   Export Word
@@ -2078,7 +2037,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                 <button
                   onClick={handleCopyReport}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   {reportCopied ? (
                     <>
@@ -2095,7 +2054,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                 <button
                   onClick={handleShare}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   {shareCopied ? (
                     <>
@@ -2141,7 +2100,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
                     setNegotiationEmail(data.email);
                     setShowEmailModal(true);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:border-gray-300 hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-50"
                 >
                   <Mail className="h-4 w-4" />
                   Generate Negotiation Email
@@ -2149,7 +2108,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
                 <button
                   onClick={() => setShowBadge(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   <Award className="h-4 w-4" />
                   Get Score Badge
@@ -2168,18 +2127,18 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50 p-6 text-center"
                 >
-                  <h3 className="text-lg font-semibold text-[#111827]">Save your analysis &amp; unlock all features</h3>
-                  <p className="mt-1 text-sm text-[#4B5563]">Create a free account to save results, access AI chat, templates, and more.</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Save your analysis &amp; unlock all features</h3>
+                  <p className="mt-1 text-sm text-gray-600">Create a free account to save results, access AI chat, templates, and more.</p>
                   <div className="mt-4 flex items-center justify-center gap-3">
                     <button
                       onClick={() => router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/analyze'))}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg hover:brightness-105"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
                     >
                       Create Free Account
                     </button>
                     <button
                       onClick={() => setShowSignupPrompt(false)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-[#4B5563] transition-colors hover:text-[#111827] hover:bg-gray-100"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 hover:bg-gray-100"
                     >
                       Maybe Later
                     </button>

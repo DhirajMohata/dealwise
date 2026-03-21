@@ -39,7 +39,7 @@ function getRecommendationIcon(rec: string) {
 }
 
 function ComparisonBadge({ aVal, bVal, higherIsBetter = true }: { aVal: number; bVal: number; higherIsBetter?: boolean }) {
-  if (aVal === bVal) return <span className="text-xs text-[#9CA3AF]">Tied</span>;
+  if (aVal === bVal) return <span className="text-xs text-gray-400">Tied</span>;
   const aIsBetter = higherIsBetter ? aVal > bVal : aVal < bVal;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${aIsBetter ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
@@ -150,23 +150,23 @@ export default function ComparePage() {
 
   return (
     <ProtectedRoute>
-    <div className="min-h-screen bg-[#FAFBFE]">
+    <div className="min-h-screen bg-white">
       <Nav />
 
       <div className="mx-auto max-w-6xl px-4 pb-24 pt-24 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-[#9CA3AF] transition-colors hover:text-[#4B5563]"
+          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-[#111827] sm:text-4xl">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
             Compare Contracts
           </h1>
-          <p className="mt-2 max-w-2xl text-[#9CA3AF]">
+          <p className="mt-2 max-w-2xl text-gray-400">
             Paste two contracts side by side with the same deal details. We will analyze both and show you which one is the better deal.
           </p>
         </div>
@@ -183,9 +183,9 @@ export default function ComparePage() {
             >
               {/* Contracts Side by Side */}
               <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <label className="text-sm font-semibold text-[#111827]">Contract A</label>
+                    <label className="text-sm font-semibold text-gray-900">Contract A</label>
                     {history.length > 0 && (
                       <select
                         onChange={(e) => {
@@ -198,7 +198,7 @@ export default function ComparePage() {
                             } catch { /* use snippet */ }
                           }
                         }}
-                        className="text-xs border border-[#E5E7EB] rounded-lg px-2 py-1 text-[#4B5563] bg-white outline-none focus:border-indigo-500"
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 bg-white outline-none focus:border-indigo-500"
                       >
                         <option value="">Load from history...</option>
                         {history.map(h => (
@@ -227,12 +227,12 @@ export default function ComparePage() {
                     value={contractA}
                     onChange={(e) => setContractA(e.target.value)}
                     placeholder="Paste the first contract here..."
-                    className="w-full resize-y rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full resize-y rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
-                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <label className="text-sm font-semibold text-[#111827]">Contract B</label>
+                    <label className="text-sm font-semibold text-gray-900">Contract B</label>
                     {history.length > 0 && (
                       <select
                         onChange={(e) => {
@@ -245,7 +245,7 @@ export default function ComparePage() {
                             } catch { /* use snippet */ }
                           }
                         }}
-                        className="text-xs border border-[#E5E7EB] rounded-lg px-2 py-1 text-[#4B5563] bg-white outline-none focus:border-indigo-500"
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 bg-white outline-none focus:border-indigo-500"
                       >
                         <option value="">Load from history...</option>
                         {history.map(h => (
@@ -274,31 +274,31 @@ export default function ComparePage() {
                     value={contractB}
                     onChange={(e) => setContractB(e.target.value)}
                     placeholder="Paste the second contract here..."
-                    className="w-full resize-y rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full resize-y rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
               </div>
 
               {/* Shared Deal Details */}
-              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm sm:p-8">
-                <h2 className="mb-1 text-sm font-semibold text-[#111827]">Shared Deal Details</h2>
-                <p className="mb-6 text-xs text-[#9CA3AF]">These apply to both contracts for a fair comparison.</p>
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+                <h2 className="mb-1 text-sm font-semibold text-gray-900">Shared Deal Details</h2>
+                <p className="mb-6 text-xs text-gray-400">These apply to both contracts for a fair comparison.</p>
 
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="sm:col-span-2 lg:col-span-4">
-                    <label className="mb-1.5 block text-xs font-medium text-[#4B5563]">Project Scope</label>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">Project Scope</label>
                     <textarea
                       rows={2}
                       value={projectScope}
                       onChange={(e) => setProjectScope(e.target.value)}
                       placeholder="Describe the work..."
-                      className="w-full resize-y rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full resize-y rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#4B5563]">Quoted Price</label>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">Quoted Price</label>
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#9CA3AF]">{currencySymbol}</span>
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">{currencySymbol}</span>
                       <input
                         type="number"
                         min="0"
@@ -306,12 +306,12 @@ export default function ComparePage() {
                         value={quotedPrice}
                         onChange={(e) => setQuotedPrice(e.target.value)}
                         placeholder="5000"
-                        className="w-full rounded-xl border border-[#E5E7EB] bg-white py-3 pl-10 pr-4 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#4B5563]">Estimated Hours</label>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">Estimated Hours</label>
                     <input
                       type="number"
                       min="1"
@@ -319,22 +319,22 @@ export default function ComparePage() {
                       value={estimatedHours}
                       onChange={(e) => setEstimatedHours(e.target.value)}
                       placeholder="80"
-                      className="w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#4B5563]">Currency</label>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">Currency</label>
                     <div className="relative">
                       <select
                         value={currency}
                         onChange={(e) => setCurrency(e.target.value)}
-                        className="w-full appearance-none rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 pr-10 text-sm text-[#111827] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                       >
                         {CURRENCIES.map((c) => (
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     </div>
                   </div>
                 </div>
@@ -349,7 +349,7 @@ export default function ComparePage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-4 text-base font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-indigo-600 px-8 py-4 text-base font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   {loading ? (
@@ -374,17 +374,17 @@ export default function ComparePage() {
               className="space-y-8"
             >
               {/* Verdict */}
-              <div className={`rounded-2xl border p-6 text-center ${resultA.overallScore > resultB.overallScore ? 'border-emerald-200 bg-emerald-50' : resultA.overallScore < resultB.overallScore ? 'border-indigo-200 bg-indigo-50' : 'border-[#E5E7EB] bg-white'}`}>
-                <h2 className="mb-2 text-xl font-bold text-[#111827]">Comparison Verdict</h2>
-                <p className="text-sm text-[#4B5563]">{verdict}</p>
+              <div className={`rounded-2xl border p-6 text-center ${resultA.overallScore > resultB.overallScore ? 'border-emerald-200 bg-emerald-50' : resultA.overallScore < resultB.overallScore ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+                <h2 className="mb-2 text-xl font-bold text-gray-900">Comparison Verdict</h2>
+                <p className="text-sm text-gray-600">{verdict}</p>
               </div>
 
               {/* Side by Side Scores */}
               <div className="grid gap-6 lg:grid-cols-2">
                 {/* Contract A */}
-                <div className={`rounded-2xl border-2 p-6 shadow-sm ${resultA.overallScore >= resultB.overallScore ? 'border-emerald-300 bg-white' : 'border-[#E5E7EB] bg-white'}`}>
+                <div className={`rounded-2xl border-2 p-6 shadow-sm ${resultA.overallScore >= resultB.overallScore ? 'border-emerald-300 bg-white' : 'border-gray-200 bg-white'}`}>
                   <div className="mb-4 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-[#111827]">Contract A</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Contract A</h3>
                     {resultA.overallScore > resultB.overallScore && (
                       <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">BETTER</span>
                     )}
@@ -393,16 +393,16 @@ export default function ComparePage() {
                   <div className="space-y-4">
                     <div className={`rounded-xl border p-4 text-center ${getScoreBg(resultA.overallScore)}`}>
                       <span className={`text-4xl font-bold ${getScoreColor(resultA.overallScore).text}`}>{resultA.overallScore}</span>
-                      <span className="text-sm text-[#9CA3AF]"> / 100</span>
+                      <span className="text-sm text-gray-400"> / 100</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFE] p-3">
-                        <p className="text-[10px] uppercase tracking-wider text-[#9CA3AF]">Quoted Rate</p>
-                        <p className="text-lg font-bold text-[#111827]">{currencySymbol}{resultA.nominalHourlyRate.toFixed(2)}/hr</p>
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Quoted Rate</p>
+                        <p className="text-lg font-bold text-gray-900">{currencySymbol}{resultA.nominalHourlyRate.toFixed(2)}/hr</p>
                       </div>
                       <div className={`rounded-lg border p-3 ${resultA.effectiveHourlyRate < resultA.nominalHourlyRate ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-                        <p className="text-[10px] uppercase tracking-wider text-[#9CA3AF]">Real Rate</p>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Real Rate</p>
                         <p className={`text-lg font-bold ${resultA.effectiveHourlyRate < resultA.nominalHourlyRate ? 'text-red-600' : 'text-emerald-600'}`}>
                           {currencySymbol}{resultA.effectiveHourlyRate.toFixed(2)}/hr
                         </p>
@@ -423,18 +423,18 @@ export default function ComparePage() {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg bg-red-50 p-2">
                         <ShieldAlert className="mx-auto mb-1 h-4 w-4 text-red-500" />
-                        <span className="text-sm font-bold text-[#111827]">{resultA.redFlags.length}</span>
-                        <p className="text-[10px] text-[#9CA3AF]">Red Flags</p>
+                        <span className="text-sm font-bold text-gray-900">{resultA.redFlags.length}</span>
+                        <p className="text-[10px] text-gray-400">Red Flags</p>
                       </div>
                       <div className="rounded-lg bg-amber-50 p-2">
                         <AlertTriangle className="mx-auto mb-1 h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-bold text-[#111827]">{resultA.missingClauses.length}</span>
-                        <p className="text-[10px] text-[#9CA3AF]">Missing</p>
+                        <span className="text-sm font-bold text-gray-900">{resultA.missingClauses.length}</span>
+                        <p className="text-[10px] text-gray-400">Missing</p>
                       </div>
                       <div className="rounded-lg bg-emerald-50 p-2">
                         <Shield className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
-                        <span className="text-sm font-bold text-[#111827]">{resultA.greenFlags.length}</span>
-                        <p className="text-[10px] text-[#9CA3AF]">Green</p>
+                        <span className="text-sm font-bold text-gray-900">{resultA.greenFlags.length}</span>
+                        <p className="text-[10px] text-gray-400">Green</p>
                       </div>
                     </div>
 
@@ -447,9 +447,9 @@ export default function ComparePage() {
                 </div>
 
                 {/* Contract B */}
-                <div className={`rounded-2xl border-2 p-6 shadow-sm ${resultB.overallScore > resultA.overallScore ? 'border-emerald-300 bg-white' : 'border-[#E5E7EB] bg-white'}`}>
+                <div className={`rounded-2xl border-2 p-6 shadow-sm ${resultB.overallScore > resultA.overallScore ? 'border-emerald-300 bg-white' : 'border-gray-200 bg-white'}`}>
                   <div className="mb-4 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-[#111827]">Contract B</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Contract B</h3>
                     {resultB.overallScore > resultA.overallScore && (
                       <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">BETTER</span>
                     )}
@@ -458,16 +458,16 @@ export default function ComparePage() {
                   <div className="space-y-4">
                     <div className={`rounded-xl border p-4 text-center ${getScoreBg(resultB.overallScore)}`}>
                       <span className={`text-4xl font-bold ${getScoreColor(resultB.overallScore).text}`}>{resultB.overallScore}</span>
-                      <span className="text-sm text-[#9CA3AF]"> / 100</span>
+                      <span className="text-sm text-gray-400"> / 100</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFE] p-3">
-                        <p className="text-[10px] uppercase tracking-wider text-[#9CA3AF]">Quoted Rate</p>
-                        <p className="text-lg font-bold text-[#111827]">{currencySymbol}{resultB.nominalHourlyRate.toFixed(2)}/hr</p>
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Quoted Rate</p>
+                        <p className="text-lg font-bold text-gray-900">{currencySymbol}{resultB.nominalHourlyRate.toFixed(2)}/hr</p>
                       </div>
                       <div className={`rounded-lg border p-3 ${resultB.effectiveHourlyRate < resultB.nominalHourlyRate ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-                        <p className="text-[10px] uppercase tracking-wider text-[#9CA3AF]">Real Rate</p>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Real Rate</p>
                         <p className={`text-lg font-bold ${resultB.effectiveHourlyRate < resultB.nominalHourlyRate ? 'text-red-600' : 'text-emerald-600'}`}>
                           {currencySymbol}{resultB.effectiveHourlyRate.toFixed(2)}/hr
                         </p>
@@ -488,18 +488,18 @@ export default function ComparePage() {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg bg-red-50 p-2">
                         <ShieldAlert className="mx-auto mb-1 h-4 w-4 text-red-500" />
-                        <span className="text-sm font-bold text-[#111827]">{resultB.redFlags.length}</span>
-                        <p className="text-[10px] text-[#9CA3AF]">Red Flags</p>
+                        <span className="text-sm font-bold text-gray-900">{resultB.redFlags.length}</span>
+                        <p className="text-[10px] text-gray-400">Red Flags</p>
                       </div>
                       <div className="rounded-lg bg-amber-50 p-2">
                         <AlertTriangle className="mx-auto mb-1 h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-bold text-[#111827]">{resultB.missingClauses.length}</span>
-                        <p className="text-[10px] text-[#9CA3AF]">Missing</p>
+                        <span className="text-sm font-bold text-gray-900">{resultB.missingClauses.length}</span>
+                        <p className="text-[10px] text-gray-400">Missing</p>
                       </div>
                       <div className="rounded-lg bg-emerald-50 p-2">
                         <Shield className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
-                        <span className="text-sm font-bold text-[#111827]">{resultB.greenFlags.length}</span>
-                        <p className="text-[10px] text-[#9CA3AF]">Green</p>
+                        <span className="text-sm font-bold text-gray-900">{resultB.greenFlags.length}</span>
+                        <p className="text-[10px] text-gray-400">Green</p>
                       </div>
                     </div>
 
@@ -513,12 +513,12 @@ export default function ComparePage() {
               </div>
 
               {/* Detailed Comparison Table */}
-              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-                <h3 className="mb-4 text-lg font-semibold text-[#111827]">Detailed Comparison</h3>
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="mb-4 text-lg font-semibold text-gray-900">Detailed Comparison</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-[#E5E7EB] text-xs font-medium uppercase tracking-wider text-[#6B7280]">
+                      <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wider text-gray-500">
                         <th className="px-4 py-3">Metric</th>
                         <th className="px-4 py-3 text-center">Contract A</th>
                         <th className="px-4 py-3 text-center">Contract B</th>
@@ -534,10 +534,10 @@ export default function ComparePage() {
                         { label: 'Missing Clauses', a: resultA.missingClauses.length, b: resultB.missingClauses.length, fmt: (v: number) => `${v}`, higherBetter: false },
                         { label: 'Green Flags', a: resultA.greenFlags.length, b: resultB.greenFlags.length, fmt: (v: number) => `${v}`, higherBetter: true },
                       ].map((row) => (
-                        <tr key={row.label} className="border-b border-[#E5E7EB]">
-                          <td className="px-4 py-3 font-medium text-[#111827]">{row.label}</td>
-                          <td className="px-4 py-3 text-center text-[#4B5563]">{row.fmt(row.a)}</td>
-                          <td className="px-4 py-3 text-center text-[#4B5563]">{row.fmt(row.b)}</td>
+                        <tr key={row.label} className="border-b border-gray-200">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.label}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{row.fmt(row.a)}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{row.fmt(row.b)}</td>
                           <td className="px-4 py-3 text-center">
                             <ComparisonBadge aVal={row.a} bVal={row.b} higherIsBetter={row.higherBetter} />
                           </td>
@@ -552,13 +552,13 @@ export default function ComparePage() {
               <div className="flex flex-wrap gap-4">
                 <button
                   onClick={handleReset}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl"
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl"
                 >
                   Compare Again
                 </button>
                 <Link
                   href="/analyze"
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-6 py-3 text-sm font-medium text-[#4B5563] transition-all hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
                 >
                   Analyze Single Contract
                 </Link>

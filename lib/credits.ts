@@ -71,41 +71,37 @@ export async function getUserCredits(email: string): Promise<UserCredits> {
 }
 
 export async function deductCredits(email: string, amount: number): Promise<{ success: boolean; remaining: number; error?: string }> {
-  await ensureUser(email);
-  const { data: row } = await supabase
-    .from('credits')
-    .select('*')
-    .eq('email', email)
-    .single();
+  const user = await getUserCredits(email);
 
-  const credit = row as CreditRow;
-
-  if (credit.plan === 'admin') {
-    // Admins have unlimited credits
+  if (user.plan === 'admin') {
+    // Admins have unlimited credits — update usage only
     await supabase
       .from('credits')
       .update({
-        total_used: credit.total_used + amount,
+        total_used: user.totalUsed + amount,
         last_used_at: new Date().toISOString(),
       })
       .eq('email', email);
     return { success: true, remaining: 999999 };
   }
 
-  if (credit.credits < amount) {
-    return { success: false, remaining: credit.credits, error: `Not enough credits. You have ${credit.credits}, need ${amount}.` };
+  if (user.credits < amount) {
+    return { success: false, remaining: user.credits, error: `Not enough credits. You have ${user.credits}, need ${amount}.` };
   }
 
-  await supabase
+  // Update with exact expected value to prevent race condition
+  const { error } = await supabase
     .from('credits')
     .update({
-      credits: credit.credits - amount,
-      total_used: credit.total_used + amount,
+      credits: user.credits - amount,
+      total_used: user.totalUsed + amount,
       last_used_at: new Date().toISOString(),
     })
-    .eq('email', email);
+    .eq('email', email)
+    .eq('credits', user.credits); // Only update if credits haven't changed!
 
-  return { success: true, remaining: credit.credits - amount };
+  if (error) return { success: false, remaining: user.credits, error: 'Please try again.' };
+  return { success: true, remaining: user.credits - amount };
 }
 
 export async function addCredits(email: string, amount: number): Promise<UserCredits> {

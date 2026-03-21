@@ -67,11 +67,14 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  await supabase
+  const { data, error } = await supabase
     .from('analyses')
     .delete()
     .eq('id', id)
-    .eq('user_email', session.user.email);
+    .eq('user_email', session.user.email)
+    .select();
 
+  if (error) return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
+  if (!data || data.length === 0) return NextResponse.json({ error: "Analysis not found" }, { status: 404 });
   return NextResponse.json({ success: true });
 }

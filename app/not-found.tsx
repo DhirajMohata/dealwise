@@ -6,7 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FAFBFE] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-white px-4">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -28,7 +28,7 @@ export default function NotFound() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="-mt-6 text-2xl font-bold text-[#111827] sm:text-3xl"
+          className="-mt-6 text-2xl font-bold text-gray-900 sm:text-3xl"
         >
           Page not found
         </motion.h1>
@@ -37,7 +37,7 @@ export default function NotFound() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-3 text-[#4B5563]"
+          className="mt-3 text-gray-600"
         >
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </motion.p>
@@ -50,7 +50,7 @@ export default function NotFound() {
         >
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-[var(--shadow-brand)] transition-all hover:shadow-lg hover:brightness-105"
+            className="inline-flex items-center gap-2 rounded-full bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
           >
             <ArrowLeft className="h-4 w-4" />
             Go Home

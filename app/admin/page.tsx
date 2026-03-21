@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import Nav from '@/components/Nav';
 import {
   Users,
   Zap,
@@ -585,6 +586,7 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute>
+      <Nav />
       <div className="flex min-h-screen bg-white">
         {/* Mobile overlay */}
         {sidebarOpen && (

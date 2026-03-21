@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 export async function GET() {
   const { data, error } = await supabase
     .from("reviews")
-    .select("*")
+    .select("id, user_name, rating, review_text, created_at, is_featured")
     .eq("is_approved", true)
     .order("created_at", { ascending: false })
     .limit(20);

@@ -84,7 +84,7 @@ export default function SettingsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#FAFBFE]">
+      <div className="min-h-screen bg-white">
       <Nav />
       <div className="relative mx-auto max-w-2xl px-6 py-20">
 
@@ -95,17 +95,17 @@ export default function SettingsPage() {
           className="space-y-8"
         >
           <motion.div variants={fadeUp}>
-            <h1 className="text-3xl font-bold text-[#111827]">Settings</h1>
-            <p className="mt-2 text-[#4B5563]">Customize your DEALWISE experience.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+            <p className="mt-2 text-gray-600">Customize your DEALWISE experience.</p>
           </motion.div>
 
           {/* -- AI API Key -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <Key className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-[#111827]">AI API Key</h2>
+              <h2 className="text-sm font-semibold text-gray-900">AI API Key</h2>
             </div>
-            <p className="mb-4 text-xs text-[#4B5563]">
+            <p className="mb-4 text-xs text-gray-600">
               Save your Claude/Anthropic API key so you don&apos;t need to re-enter it every time.
             </p>
             <div className="flex gap-2">
@@ -115,12 +115,12 @@ export default function SettingsPage() {
                   value={settings.savedApiKey}
                   onChange={(e) => updateSetting('savedApiKey', e.target.value)}
                   placeholder="sk-ant-api03-..."
-                  className="w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 pr-10 text-sm text-[#111827] placeholder-[#9CA3AF] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#4B5563]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -138,46 +138,46 @@ export default function SettingsPage() {
                 )}
               </button>
             </div>
-            <p className="mt-2 flex items-center gap-1 text-[10px] text-[#9CA3AF]">
+            <p className="mt-2 flex items-center gap-1 text-[10px] text-gray-400">
               <Info className="h-3 w-3" />
               Key saved securely in your browser. Never sent to our servers.
             </p>
           </motion.section>
 
           {/* -- Credits -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <CreditCard className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-[#111827]">Credits</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Credits</h2>
             </div>
             {creditData ? (
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFE] p-4">
-                    <p className="text-xs font-medium text-[#9CA3AF]">Current Balance</p>
-                    <p className="mt-1 text-2xl font-bold text-[#111827]">
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <p className="text-xs font-medium text-gray-400">Current Balance</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
                       {creditData.plan === 'admin' ? 'Unlimited' : creditData.credits}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFE] p-4">
-                    <p className="text-xs font-medium text-[#9CA3AF]">Total Used</p>
-                    <p className="mt-1 text-2xl font-bold text-[#111827]">{creditData.totalUsed}</p>
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <p className="text-xs font-medium text-gray-400">Total Used</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{creditData.totalUsed}</p>
                   </div>
-                  <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFE] p-4">
-                    <p className="text-xs font-medium text-[#9CA3AF]">Plan</p>
-                    <p className="mt-1 text-2xl font-bold capitalize text-[#111827]">{creditData.plan}</p>
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <p className="text-xs font-medium text-gray-400">Plan</p>
+                    <p className="mt-1 text-2xl font-bold capitalize text-gray-900">{creditData.plan}</p>
                   </div>
                 </div>
 
                 <div>
-                  <p className="mb-2 text-xs font-medium text-[#4B5563]">Credit Costs</p>
-                  <div className="rounded-lg border border-[#E5E7EB] overflow-hidden">
+                  <p className="mb-2 text-xs font-medium text-gray-600">Credit Costs</p>
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <table className="w-full">
-                      <tbody className="divide-y divide-[#E5E7EB]">
+                      <tbody className="divide-y divide-gray-200">
                         {CREDIT_COSTS_TABLE.map((row) => (
                           <tr key={row.action}>
-                            <td className="px-4 py-2.5 text-sm text-[#111827]">{row.action}</td>
-                            <td className="px-4 py-2.5 text-right text-sm font-medium text-[#4B5563]">{row.cost}</td>
+                            <td className="px-4 py-2.5 text-sm text-gray-900">{row.action}</td>
+                            <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-600">{row.cost}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -186,26 +186,26 @@ export default function SettingsPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-[#9CA3AF]">Loading credit information...</p>
+              <p className="text-sm text-gray-400">Loading credit information...</p>
             )}
           </motion.section>
 
           {/* -- Default Currency & Country -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <Globe className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-[#111827]">Defaults</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Defaults</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#4B5563]">
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">
                   <DollarSign className="mr-1 inline h-3 w-3" />
                   Default Currency
                 </label>
                 <select
                   value={settings.defaultCurrency}
                   onChange={(e) => updateSetting('defaultCurrency', e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 >
                   {CURRENCIES.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -215,14 +215,14 @@ export default function SettingsPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#4B5563]">
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">
                   <Globe className="mr-1 inline h-3 w-3" />
                   Default Country
                 </label>
                 <select
                   value={settings.defaultCountry}
                   onChange={(e) => updateSetting('defaultCountry', e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 >
                   {COUNTRIES.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -235,14 +235,14 @@ export default function SettingsPage() {
           </motion.section>
 
           {/* -- Analysis Preferences -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <Sparkles className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-[#111827]">Analysis Preferences</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Analysis Preferences</h2>
             </div>
             <div className="space-y-4">
               <label className="flex items-center justify-between">
-                <span className="text-sm text-[#111827]">Show AI insights</span>
+                <span className="text-sm text-gray-900">Show AI insights</span>
                 <button
                   onClick={() => updateSetting('showAiInsights', !settings.showAiInsights)}
                   className={`relative h-6 w-11 rounded-full transition-colors ${
@@ -257,7 +257,7 @@ export default function SettingsPage() {
                 </button>
               </label>
               <label className="flex items-center justify-between">
-                <span className="text-sm text-[#111827]">Show country context</span>
+                <span className="text-sm text-gray-900">Show country context</span>
                 <button
                   onClick={() => updateSetting('showCountryContext', !settings.showCountryContext)}
                   className={`relative h-6 w-11 rounded-full transition-colors ${
@@ -275,10 +275,10 @@ export default function SettingsPage() {
           </motion.section>
 
           {/* -- Data -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <Trash2 className="h-5 w-5 text-red-500" />
-              <h2 className="text-sm font-semibold text-[#111827]">Data</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Data</h2>
             </div>
             <button
               onClick={handleClearHistory}
@@ -286,20 +286,20 @@ export default function SettingsPage() {
             >
               Clear Analysis History
             </button>
-            <p className="mt-2 text-xs text-[#9CA3AF]">
+            <p className="mt-2 text-xs text-gray-400">
               This will remove all locally saved analysis history from your browser.
             </p>
           </motion.section>
 
           {/* -- About -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <Info className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-[#111827]">About</h2>
+              <h2 className="text-sm font-semibold text-gray-900">About</h2>
             </div>
-            <div className="space-y-2 text-sm text-[#4B5563]">
+            <div className="space-y-2 text-sm text-gray-600">
               <p>
-                <span className="font-medium text-[#111827]">DEALWISE</span> v0.1.0
+                <span className="font-medium text-gray-900">DEALWISE</span> v0.1.0
               </p>
               <p>
                 Built with Next.js, TypeScript, Tailwind CSS, and Framer Motion.

@@ -56,7 +56,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.className} ${dmSerif.variable}`}>
-      <body className="bg-[#FAFBFE] text-[#111827]">
+      <body className="bg-white text-gray-900">
         <AuthProvider>
             {children}
             <ReportIssue />

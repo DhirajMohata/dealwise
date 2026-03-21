@@ -69,7 +69,7 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
       {/* Toggle button - fixed on the right side */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-l-xl border border-r-0 border-[#E5E7EB] bg-white px-2 py-4 text-[#4B5563] shadow-lg transition-colors hover:bg-[#F3F4F8] hover:text-[#111827]"
+        className="fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-l-xl border border-r-0 border-gray-200 bg-white px-2 py-4 text-gray-600 shadow-lg transition-colors hover:bg-gray-50 hover:text-gray-900"
         whileHover={{ x: -2 }}
         whileTap={{ scale: 0.95 }}
         title="Analysis History"
@@ -107,16 +107,16 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 z-50 flex h-full w-80 flex-col border-l border-[#E5E7EB] bg-white shadow-xl sm:w-96"
+              className="fixed right-0 top-0 z-50 flex h-full w-80 flex-col border-l border-gray-200 bg-white shadow-xl sm:w-96"
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
+              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                 <div className="flex items-center gap-2">
                   <History className="h-4 w-4 text-indigo-500" />
-                  <h2 className="text-sm font-semibold text-[#111827]">
+                  <h2 className="text-sm font-semibold text-gray-900">
                     Analysis History
                   </h2>
-                  <span className="rounded-full bg-[#F3F4F8] px-2 py-0.5 text-[10px] font-medium text-[#4B5563]">
+                  <span className="rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-600">
                     {entries.length}
                   </span>
                 </div>
@@ -133,7 +133,7 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
                   )}
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="rounded-lg p-1.5 text-[#9CA3AF] transition-colors hover:bg-[#F3F4F8] hover:text-[#4B5563]"
+                    className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -144,13 +144,13 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
               <div className="flex-1 overflow-y-auto p-4">
                 {entries.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="mb-3 rounded-xl bg-[#F3F4F8] p-4">
-                      <Clock className="h-8 w-8 text-[#9CA3AF]" />
+                    <div className="mb-3 rounded-xl bg-gray-50 p-4">
+                      <Clock className="h-8 w-8 text-gray-400" />
                     </div>
-                    <p className="text-sm font-medium text-[#4B5563]">
+                    <p className="text-sm font-medium text-gray-600">
                       No analyses yet
                     </p>
-                    <p className="mt-1 text-xs text-[#9CA3AF]">
+                    <p className="mt-1 text-xs text-gray-400">
                       Your analysis history will appear here
                     </p>
                   </div>
@@ -166,11 +166,11 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * 0.03 }}
                           onClick={() => handleSelect(entry)}
-                          className="group w-full rounded-lg border border-[#E5E7EB] bg-[#F3F4F8] p-4 text-left transition-all hover:border-indigo-300 hover:bg-white hover:shadow-sm"
+                          className="group w-full rounded-lg border border-gray-200 bg-gray-50 p-4 text-left transition-all hover:border-indigo-300 hover:bg-white hover:shadow-sm"
                         >
                           {/* Top row: date + score */}
                           <div className="mb-2 flex items-center justify-between">
-                            <span className="flex items-center gap-1 text-[10px] text-[#9CA3AF]">
+                            <span className="flex items-center gap-1 text-[10px] text-gray-400">
                               <Clock className="h-3 w-3" />
                               {formatRelativeDate(entry.date)}
                             </span>
@@ -180,7 +180,7 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
                               )}`}
                             >
                               {entry.overallScore}
-                              <span className="text-[10px] font-normal text-[#9CA3AF]">
+                              <span className="text-[10px] font-normal text-gray-400">
                                 /100
                               </span>
                             </span>
@@ -205,7 +205,7 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
                           )}
 
                           {/* Contract snippet */}
-                          <p className="line-clamp-2 text-xs leading-relaxed text-[#9CA3AF] transition-colors group-hover:text-[#4B5563]">
+                          <p className="line-clamp-2 text-xs leading-relaxed text-gray-400 transition-colors group-hover:text-gray-600">
                             {entry.contractSnippet}
                           </p>
                         </motion.button>

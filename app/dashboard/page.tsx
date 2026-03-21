@@ -193,7 +193,7 @@ export default function DashboardPage() {
   if (!mounted) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-[#FAFBFE]">
+        <div className="min-h-screen bg-white">
           <Nav />
           <div className="flex items-center justify-center py-32">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
@@ -205,7 +205,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-    <div className="min-h-screen bg-[#FAFBFE]">
+    <div className="min-h-screen bg-white">
       <Nav />
 
       <main className="mx-auto max-w-7xl px-6 py-8">
@@ -214,13 +214,13 @@ export default function DashboardPage() {
           <div>
             <Link
               href="/"
-              className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-[#4B5563] transition-colors hover:text-[#111827]"
+              className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Home
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight text-[#111827]">Dashboard</h1>
-            <p className="mt-1 text-sm text-[#6B7280]">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">
               Track your contract analyses and insights
             </p>
           </div>
@@ -260,15 +260,15 @@ export default function DashboardPage() {
               initial="hidden"
               animate="visible"
               variants={fadeUp}
-              className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm"
+              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
             >
               <div className="mb-4 flex items-center gap-3">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-full ${card.color}`}>
                   <card.icon className="h-5 w-5" />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-[#111827]">{card.value}</p>
-              <p className="mt-1 text-sm text-[#6B7280]">{card.label}</p>
+              <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+              <p className="mt-1 text-sm text-gray-500">{card.label}</p>
             </motion.div>
           ))}
         </div>
@@ -279,18 +279,18 @@ export default function DashboardPage() {
           initial="hidden"
           animate="visible"
           variants={fadeUp}
-          className="mb-8 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
+          className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm"
         >
-          <div className="flex flex-col gap-4 border-b border-[#E5E7EB] p-6 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-[#111827]">Recent Analyses</h2>
+          <div className="flex flex-col gap-4 border-b border-gray-200 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Analyses</h2>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search contracts..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-[#E5E7EB] bg-[#FAFBFE] py-2 pl-10 pr-4 text-sm text-[#111827] placeholder-[#9CA3AF] outline-none transition-colors focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 sm:w-72"
+                className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 sm:w-72"
               />
             </div>
           </div>
@@ -300,10 +300,10 @@ export default function DashboardPage() {
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50">
                 <FileText className="h-8 w-8 text-indigo-400" />
               </div>
-              <p className="mb-2 text-lg font-semibold text-[#111827]">
+              <p className="mb-2 text-lg font-semibold text-gray-900">
                 {search ? 'No matching analyses' : 'No analyses yet'}
               </p>
-              <p className="mb-6 text-sm text-[#6B7280]">
+              <p className="mb-6 text-sm text-gray-500">
                 {search
                   ? 'Try a different search term'
                   : 'Analyze your first contract to see insights here'}
@@ -311,7 +311,7 @@ export default function DashboardPage() {
               {!search && (
                 <Link
                   href="/analyze"
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
+                  className="inline-flex items-center gap-2 rounded-full bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
                 >
                   Analyze a Contract
                   <ArrowRight className="h-4 w-4" />
@@ -323,7 +323,7 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-[#E5E7EB] bg-gray-50 text-xs font-medium uppercase tracking-wider text-[#6B7280]">
+                  <tr className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase tracking-wider text-gray-500">
                     <th className="px-6 py-3">Date</th>
                     <th className="px-6 py-3">Contract Snippet</th>
                     <th className="px-6 py-3">Score</th>
@@ -339,12 +339,12 @@ export default function DashboardPage() {
                     return (
                       <tr
                         key={entry.id}
-                        className={`border-b border-[#E5E7EB] transition-colors hover:bg-indigo-50/30 ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFBFE]'}`}
+                        className={`border-b border-gray-200 transition-colors hover:bg-indigo-50/30 ${idx % 2 === 0 ? 'bg-white' : 'bg-white'}`}
                       >
-                        <td className="whitespace-nowrap px-6 py-4 text-[#6B7280]">
+                        <td className="whitespace-nowrap px-6 py-4 text-gray-500">
                           {formatDate(entry.date)}
                         </td>
-                        <td className="max-w-[240px] truncate px-6 py-4 font-medium text-[#111827]">
+                        <td className="max-w-[240px] truncate px-6 py-4 font-medium text-gray-900">
                           {entry.contractSnippet}
                         </td>
                         <td className="px-6 py-4">
@@ -352,7 +352,7 @@ export default function DashboardPage() {
                             {entry.overallScore} &middot; {sb.label}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-[#6B7280]">
+                        <td className="px-6 py-4 text-gray-500">
                           <span className={entry.rateReduction > 0 ? 'text-red-600' : 'text-emerald-600'}>
                             {entry.rateReduction > 0 ? '-' : ''}{entry.rateReduction}%
                           </span>
@@ -369,14 +369,14 @@ export default function DashboardPage() {
                                 localStorage.setItem('dealwise_view_result', entry.fullResult);
                                 router.push('/analyze');
                               }}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition-colors hover:bg-[#F3F4F8] hover:text-[#111827]"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               View
                             </button>
                             <button
                               onClick={() => handleDelete(entry.id)}
-                              className="inline-flex items-center justify-center rounded-lg border border-[#E5E7EB] bg-white p-1.5 text-[#9CA3AF] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                              className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                               title="Delete entry"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -415,15 +415,15 @@ export default function DashboardPage() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
           >
             <div className="mb-6 flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-lg font-semibold text-[#111827]">Score Distribution</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Score Distribution</h2>
             </div>
 
             {stats.total === 0 ? (
-              <p className="py-8 text-center text-sm text-[#9CA3AF]">
+              <p className="py-8 text-center text-sm text-gray-400">
                 No data yet. Analyze a contract to see distribution.
               </p>
             ) : (
@@ -439,7 +439,7 @@ export default function DashboardPage() {
                   const height = distribution[i] > 0 ? Math.max((distribution[i] / maxBucket) * 140, 16) : 8;
                   return (
                     <div key={label} className="flex flex-1 flex-col items-center gap-2">
-                      <span className="text-xs font-semibold text-[#111827]">
+                      <span className="text-xs font-semibold text-gray-900">
                         {distribution[i]}
                       </span>
                       <motion.div
@@ -448,7 +448,7 @@ export default function DashboardPage() {
                         transition={{ duration: 0.6, delay: i * 0.1, ease: 'easeOut' }}
                         className={`w-full rounded-t-lg ${colors[i]}`}
                       />
-                      <span className="text-[10px] font-medium text-[#6B7280]">{label}</span>
+                      <span className="text-[10px] font-medium text-gray-500">{label}</span>
                     </div>
                   );
                 })}
@@ -462,64 +462,64 @@ export default function DashboardPage() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
           >
-            <h2 className="mb-6 text-lg font-semibold text-[#111827]">Quick Actions</h2>
+            <h2 className="mb-6 text-lg font-semibold text-gray-900">Quick Actions</h2>
             <div className="flex flex-col gap-3">
               <Link
                 href="/analyze"
-                className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
+                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100">
                   <FileText className="h-5 w-5 text-indigo-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-[#111827]">Analyze New Contract</p>
-                  <p className="text-xs text-[#6B7280]">Paste or upload a contract to analyze</p>
+                  <p className="font-medium text-gray-900">Analyze New Contract</p>
+                  <p className="text-xs text-gray-500">Paste or upload a contract to analyze</p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-[#9CA3AF]" />
+                <ArrowRight className="h-4 w-4 text-gray-400" />
               </Link>
 
               <Link
                 href="/templates"
-                className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
+                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
                   <FileDown className="h-5 w-5 text-purple-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-[#111827]">View Templates</p>
-                  <p className="text-xs text-[#6B7280]">Browse freelancer-friendly contract templates</p>
+                  <p className="font-medium text-gray-900">View Templates</p>
+                  <p className="text-xs text-gray-500">Browse freelancer-friendly contract templates</p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-[#9CA3AF]" />
+                <ArrowRight className="h-4 w-4 text-gray-400" />
               </Link>
 
               <Link
                 href="/chat"
-                className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
+                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
                   <MessageSquare className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-[#111827]">AI Contract Chat</p>
-                  <p className="text-xs text-[#6B7280]">Ask questions about your contracts</p>
+                  <p className="font-medium text-gray-900">AI Contract Chat</p>
+                  <p className="text-xs text-gray-500">Ask questions about your contracts</p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-[#9CA3AF]" />
+                <ArrowRight className="h-4 w-4 text-gray-400" />
               </Link>
 
               <Link
                 href="/settings"
-                className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
+                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
                   <Settings className="h-5 w-5 text-gray-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-[#111827]">Settings</p>
-                  <p className="text-xs text-[#6B7280]">Configure your preferences and API keys</p>
+                  <p className="font-medium text-gray-900">Settings</p>
+                  <p className="text-xs text-gray-500">Configure your preferences and API keys</p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-[#9CA3AF]" />
+                <ArrowRight className="h-4 w-4 text-gray-400" />
               </Link>
             </div>
           </motion.div>

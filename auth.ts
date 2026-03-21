@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { sendEmail, welcomeEmailHTML } from "@/lib/email"
 
 function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
+  return bcrypt.hashSync(password, 12);
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -27,6 +27,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const action = credentials?.action as string
 
         if (!email || !password) return null
+        if (password.length < 8) return null
 
         if (action === "signup") {
           const { data: existing } = await supabase

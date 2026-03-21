@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit } from "@/lib/security";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse");
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  if (!checkRateLimit(ip, 20, 60000)) {
+    return NextResponse.json({ error: "Too many uploads. Try again in a minute." }, { status: 429 });
+  }
+
   try {
     let formData: FormData;
     try {

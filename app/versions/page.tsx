@@ -93,7 +93,7 @@ export default function VersionsPage() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-[#FAFBFE]">
+      <div className="min-h-screen bg-white">
         <Nav />
         <div className="flex h-[60vh] items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
@@ -103,37 +103,37 @@ export default function VersionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFBFE]">
+    <div className="min-h-screen bg-white">
       <Nav />
 
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-24 sm:px-6 lg:px-8">
         <Link
           href="/dashboard"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-[#9CA3AF] transition-colors hover:text-[#4B5563]"
+          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Link>
 
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-[#111827] sm:text-4xl">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
             Contract Versions
           </h1>
-          <p className="mt-2 text-[#9CA3AF]">
+          <p className="mt-2 text-gray-400">
             Track how your contract scores improve across revisions.
           </p>
         </div>
 
         {groups.length === 0 ? (
-          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-12 text-center">
-            <GitBranch className="mx-auto mb-4 h-12 w-12 text-[#9CA3AF]" />
-            <h3 className="text-lg font-semibold text-[#111827]">No versions yet</h3>
-            <p className="mt-2 text-sm text-[#9CA3AF]">
+          <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
+            <GitBranch className="mx-auto mb-4 h-12 w-12 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900">No versions yet</h3>
+            <p className="mt-2 text-sm text-gray-400">
               Analyze a contract multiple times to see how your score improves across versions.
             </p>
             <Link
               href="/analyze"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(79,70,229,0.25)] transition-all hover:shadow-lg"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
             >
               Analyze a Contract
             </Link>
@@ -146,12 +146,12 @@ export default function VersionsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: gi * 0.1 }}
-                className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm"
+                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
               >
                 <div className="mb-4 flex items-center gap-3">
                   <FileText className="h-5 w-5 text-indigo-600" />
-                  <h2 className="text-lg font-semibold text-[#111827] truncate">{group.name}</h2>
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-[#4B5563]">
+                  <h2 className="text-lg font-semibold text-gray-900 truncate">{group.name}</h2>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                     {group.versions.length} version{group.versions.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -179,10 +179,10 @@ export default function VersionsPage() {
                           </div>
 
                           {/* Content */}
-                          <div className="flex-1 rounded-xl border border-[#E5E7EB] bg-[#FAFBFE] p-4">
+                          <div className="flex-1 rounded-xl border border-gray-200 bg-white p-4">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-[#111827]">
+                                <span className="text-sm font-semibold text-gray-900">
                                   v{version.versionNumber}
                                 </span>
                                 {trend && TrendIcon && (
@@ -199,7 +199,7 @@ export default function VersionsPage() {
                                   {version.recommendation.replace('_', ' ')}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-[#9CA3AF]">
+                              <div className="flex items-center gap-1 text-xs text-gray-400">
                                 <Clock className="h-3 w-3" />
                                 {new Date(version.createdAt).toLocaleDateString()}
                               </div>
