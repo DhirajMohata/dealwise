@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, LogOut, User, Settings, LayoutDashboard, MessageSquare, FileText, Search, GitCompareArrows, Code2, Layers, Shield, GitBranch, DollarSign } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
-import { useAuthModal } from '@/components/AuthProvider';
 
 interface CreditInfo {
   credits: number;
@@ -17,7 +16,6 @@ interface CreditInfo {
 export default function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session, status } = useSession();
-  const { openAuthModal } = useAuthModal();
   const pathname = usePathname();
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
 
@@ -174,12 +172,12 @@ export default function Nav() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={openAuthModal}
+                  <Link
+                    href="/auth/signin"
                     className="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900"
                   >
                     Sign In
-                  </button>
+                  </Link>
                   <Link
                     href="/analyze"
                     className="rounded-lg bg-gray-900 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-gray-800"
@@ -363,15 +361,13 @@ export default function Nav() {
                   ) : (
                     <>
                       <div className="my-1 h-px bg-gray-100" />
-                      <button
-                        onClick={() => {
-                          openAuthModal();
-                          setMobileOpen(false);
-                        }}
+                      <Link
+                        href="/auth/signin"
+                        onClick={() => setMobileOpen(false)}
                         className="flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
                       >
                         Sign In
-                      </button>
+                      </Link>
                       <Link
                         href="/analyze"
                         onClick={() => setMobileOpen(false)}

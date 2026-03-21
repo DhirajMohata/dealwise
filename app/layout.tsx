@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
-import AuthModal from "@/components/AuthModal";
 import ReportIssue from "@/components/ReportIssue";
 
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
+});
+
+const dmSerif = DM_Serif_Display({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-serif",
 });
 
 export const metadata: Metadata = {
@@ -49,11 +55,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en" className={`${inter.className} ${dmSerif.variable}`}>
       <body className="bg-[#FAFBFE] text-[#111827]">
         <AuthProvider>
             {children}
-            <AuthModal />
             <ReportIssue />
         </AuthProvider>
       </body>
