@@ -103,7 +103,7 @@ export function lowCreditsEmailHTML(name: string, creditsRemaining: number): str
       </div>
       <h2 style="font-size: 20px; color: #111827;">You're running low on credits</h2>
       <p style="font-size: 15px; color: #4B5563;">
-        Hi ${name}, you have <strong>${creditsRemaining} credits</strong> remaining. Each contract analysis uses 1-2 credits.
+        Hi ${name}, you have <strong>${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'}</strong> remaining. Each contract analysis uses 1 credit.
       </p>
       <div style="text-align: center; margin: 24px 0;">
         <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/pricing"
