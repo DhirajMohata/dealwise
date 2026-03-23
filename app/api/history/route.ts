@@ -9,6 +9,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  const hash = request.nextUrl.searchParams.get('hash');
+  if (hash) {
+    const { data } = await supabase
+      .from('analyses')
+      .select('id, overall_score, recommendation, created_at')
+      .eq('user_email', session.user.email)
+      .eq('contract_hash', hash)
+      .order('created_at', { ascending: true });
+    return NextResponse.json({ versions: data || [] });
+  }
+
   const teamId = request.nextUrl.searchParams.get('teamId');
 
   if (teamId) {

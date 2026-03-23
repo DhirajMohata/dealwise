@@ -42,6 +42,23 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data);
 }
 
+// PATCH: rename a conversation
+export async function PATCH(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  const { id, title } = await request.json();
+  if (!id || !title) return NextResponse.json({ error: "Missing id or title" }, { status: 400 });
+
+  await supabase
+    .from('chat_conversations')
+    .update({ title: title.trim() })
+    .eq('id', id)
+    .eq('user_email', session.user.email);
+
+  return NextResponse.json({ success: true });
+}
+
 // DELETE: delete a conversation
 export async function DELETE(request: NextRequest) {
   const session = await auth();

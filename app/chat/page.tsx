@@ -72,6 +72,8 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -133,6 +135,7 @@ export default function ChatPage() {
   }, []);
 
   const deleteConversation = useCallback(async (id: string) => {
+    if (!window.confirm('Delete this conversation?')) return;
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeConversation === id) {
       setActiveConversation(null);
@@ -145,6 +148,17 @@ export default function ChatPage() {
       body: JSON.stringify({ id }),
     }).catch(() => {});
   }, [activeConversation]);
+
+  const renameConversation = useCallback(async (convId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: newTitle.trim() } : c));
+    setEditingTitle(null);
+    fetch('/api/chat/conversations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: convId, title: newTitle.trim() }),
+    }).catch(() => {});
+  }, []);
 
   const saveMessageToDB = useCallback((conversationId: string, role: 'user' | 'assistant', content: string) => {
     // Fire and forget - non-blocking
@@ -496,14 +510,35 @@ export default function ChatPage() {
                           onClick={() => selectConversation(conv.id)}
                           className="w-full text-left"
                         >
-                          <p className={`truncate text-sm ${isSelected ? 'font-medium text-indigo-700' : 'text-gray-700'}`}>
-                            {conv.title || 'New Chat'}
-                          </p>
+                          {editingTitle === conv.id ? (
+                            <input
+                              autoFocus
+                              value={editTitleValue}
+                              onChange={(e) => setEditTitleValue(e.target.value)}
+                              onBlur={() => renameConversation(conv.id, editTitleValue)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') renameConversation(conv.id, editTitleValue);
+                                if (e.key === 'Escape') setEditingTitle(null);
+                              }}
+                              className="w-full rounded bg-white px-1.5 py-0.5 text-sm text-gray-900 border border-indigo-300 outline-none"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <p
+                              className={`truncate text-sm ${isSelected ? 'font-medium text-indigo-700' : 'text-gray-700'}`}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTitle(conv.id);
+                                setEditTitleValue(conv.title || 'New Chat');
+                              }}
+                            >
+                              {conv.title || 'New Chat'}
+                            </p>
+                          )}
                           <div className="mt-1 flex items-center gap-2">
                             {conv.contract_snippet && (
-                              <span className="flex items-center gap-0.5 text-[10px] text-indigo-500">
-                                <FileText className="h-2.5 w-2.5" />
-                                Contract
+                              <span className="truncate text-[10px] text-indigo-500 max-w-[150px] inline-block">
+                                {conv.contract_snippet.slice(0, 30)}
                               </span>
                             )}
                             <span className="text-[10px] text-gray-400">

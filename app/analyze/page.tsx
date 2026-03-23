@@ -37,7 +37,7 @@ import OnboardingBanner from '@/components/OnboardingBanner';
 import ErrorFallback from '@/components/ErrorFallback';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import UpgradeModal from '@/components/UpgradeModal';
-import { addHistoryEntry, getHistory, contractHash } from '@/lib/auth';
+import { addHistoryEntry, contractHash } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import type { AnalysisResult } from '@/lib/analyzer';
 import { extractMetadataFromText, type ContractMetadata } from '@/lib/extract-metadata';
@@ -195,33 +195,22 @@ export default function AnalyzePage() {
   /* ---------- Load versions for the CURRENT contract ---------- */
   useEffect(() => {
     if (!result) { setVersions([]); return; }
-    try {
-      const history = getHistory(session?.user?.email ?? undefined);
-      // Get current contract text (from state or from stored result)
-      const currentText = contractText || (result as unknown as Record<string, unknown>).contractText as string || '';
-      if (!currentText) { setVersions([]); return; }
+    const currentText = contractText || ((result as unknown as Record<string, unknown>).contractText as string) || '';
+    if (!currentText) { setVersions([]); return; }
 
-      const currentHash = contractHash(currentText);
+    const hash = contractHash(currentText);
 
-      // Match by hash (primary) or snippet (backward compat for old entries without hash)
-      const currentSnippet = currentText.slice(0, 40).replace(/\s+/g, ' ').trim().toLowerCase();
-      const filtered = history.filter((h) => {
-        // Primary: match by hash
-        if (h.contractHash && h.contractHash === currentHash) return true;
-        // Fallback: match by snippet for old entries without hash
-        if (!h.contractHash) {
-          const hSnippet = (h.contractSnippet || '').slice(0, 40).replace(/\s+/g, ' ').trim().toLowerCase();
-          if (currentSnippet && hSnippet && currentSnippet === hSnippet) return true;
-        }
-        return false;
-      });
-      setVersions(filtered.map((h) => ({
-        id: h.id,
-        score: h.overallScore,
-        rec: h.recommendation,
-        date: h.date,
-      })));
-    } catch { setVersions([]); }
+    fetch(`/api/history?hash=${encodeURIComponent(hash)}`)
+      .then(r => r.ok ? r.json() : { versions: [] })
+      .then(data => {
+        setVersions((data.versions || []).map((v: { id: string; overall_score: number; recommendation: string; created_at: string }) => ({
+          id: v.id,
+          score: v.overall_score,
+          rec: v.recommendation,
+          date: v.created_at,
+        })));
+      })
+      .catch(() => setVersions([]));
   }, [result, contractText]);
 
   /* ---------- keyboard shortcut: Cmd/Ctrl + Enter to submit (FIX 5) ---------- */
