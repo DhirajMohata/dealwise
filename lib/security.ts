@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 // Input sanitization
 export function sanitizeInput(text: string): string {
   return text
@@ -29,5 +31,31 @@ export function checkRateLimit(
   }
 
   record.count++;
+  return true;
+}
+
+// Persistent rate limiter backed by Supabase
+export async function checkRateLimitPersistent(
+  ip: string,
+  endpoint: string,
+  maxRequests: number = 10,
+  windowMs: number = 60000
+): Promise<boolean> {
+  const key = `${ip}:${endpoint}`;
+
+  const { data } = await supabase
+    .from('rate_limits')
+    .select('count, window_start')
+    .eq('id', key)
+    .single();
+
+  if (!data || new Date(data.window_start).getTime() < Date.now() - windowMs) {
+    await supabase.from('rate_limits').upsert({ id: key, count: 1, window_start: new Date().toISOString() });
+    return true;
+  }
+
+  if (data.count >= maxRequests) return false;
+
+  await supabase.from('rate_limits').update({ count: data.count + 1 }).eq('id', key);
   return true;
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeContract, type AnalysisInput } from "@/lib/analyzer";
 import { enhanceWithAI, getCountryContext, getAIProvider } from "@/lib/ai-enhance";
-import { sanitizeInput, checkRateLimit } from "@/lib/security";
+import { sanitizeInput, checkRateLimit, checkRateLimitPersistent } from "@/lib/security";
 import { auth } from "@/auth";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import { getAdminSettings } from "@/lib/admin-settings";
@@ -34,6 +34,17 @@ export async function POST(request: NextRequest) {
         { error: "Rate limit exceeded. Try again in a minute." },
         { status: 429 }
       );
+    }
+
+    // Persistent rate limit check (30 requests per hour)
+    if (!isTestMode) {
+      const persistentAllowed = await checkRateLimitPersistent(ip, 'analyze', 30, 3600000);
+      if (!persistentAllowed) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Try again later." },
+          { status: 429 }
+        );
+      }
     }
 
     const body = await request.json();

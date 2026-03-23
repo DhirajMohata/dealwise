@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.email) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const body = await request.json();
-  const { contractId, contractSnippet, title } = body;
+  const { contractId, contractSnippet, contractText, title } = body;
 
   const { data, error } = await supabase
     .from('chat_conversations')
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       user_email: session.user.email,
       contract_id: contractId || null,
       contract_snippet: contractSnippet || null,
+      contract_text: contractText || null,
       title: title || 'New Chat',
     })
     .select()

@@ -45,6 +45,7 @@ interface Conversation {
   user_email: string;
   contract_id: string | null;
   contract_snippet: string | null;
+  contract_text: string | null;
   title: string;
   created_at: string;
   updated_at: string;
@@ -113,7 +114,7 @@ export default function ChatPage() {
     }
   }, []);
 
-  const createConversation = useCallback(async (opts: { contractId?: string; contractSnippet?: string; title?: string }): Promise<Conversation | null> => {
+  const createConversation = useCallback(async (opts: { contractId?: string; contractSnippet?: string; contractText?: string; title?: string }): Promise<Conversation | null> => {
     try {
       const res = await fetch('/api/chat/conversations', {
         method: 'POST',
@@ -179,6 +180,7 @@ export default function ChatPage() {
           const newConv = await createConversation({
             contractId: parsed.contractId || `chat-${Date.now()}`,
             contractSnippet,
+            contractText: parsed.contractText,
             title: contractSnippet || 'Contract Chat',
           });
 
@@ -245,7 +247,7 @@ export default function ChatPage() {
   const getContractContext = useCallback((): string | undefined => {
     if (!activeConversation) return undefined;
     const conv = conversations.find((c) => c.id === activeConversation);
-    return conv?.contract_snippet || undefined;
+    return conv?.contract_text || conv?.contract_snippet || undefined;
   }, [activeConversation, conversations]);
 
   /* ---- Send message ---- */

@@ -3,6 +3,7 @@ import { Inter, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import { CreditsProvider } from "@/components/CreditsProvider";
+import PostHogProvider from "@/components/PostHogProvider";
 import ReportIssue from "@/components/ReportIssue";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -65,10 +66,12 @@ export default async function RootLayout({
       <body className="bg-white text-gray-900">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AuthProvider>
-            <CreditsProvider>
-              {children}
-              <ReportIssue />
-            </CreditsProvider>
+            <PostHogProvider>
+              <CreditsProvider>
+                {children}
+                <ReportIssue />
+              </CreditsProvider>
+            </PostHogProvider>
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

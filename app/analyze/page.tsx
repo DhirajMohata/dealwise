@@ -1,15 +1,13 @@
 'use client';
 
+declare global { interface Window { posthog?: { capture: (event: string, props?: Record<string, unknown>) => void } } }
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
-  ShieldCheck,
   ShieldAlert,
   FileWarning,
-  TrendingDown,
-  TrendingUp,
-  Minus,
   GitBranch,
   Copy,
   Check,
@@ -18,22 +16,15 @@ import {
   RefreshCw,
   Share2,
   FileDown,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Info,
   Upload,
   FileText,
   X,
-  Filter,
   Eye,
   Brain,
   MessageSquare,
   Highlighter,
   Mail,
   Award,
-  Calculator,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -49,269 +40,24 @@ import UpgradeModal from '@/components/UpgradeModal';
 import { addHistoryEntry, getHistory, contractHash } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import type { AnalysisResult } from '@/lib/analyzer';
-import { simpleMarkdownToHtml } from '@/lib/markdown';
 import { extractMetadataFromText, type ContractMetadata } from '@/lib/extract-metadata';
-import { CURRENCIES, getScoreColor, getRecommendationConfig } from '@/lib/constants';
+import { CURRENCIES } from '@/lib/constants';
+import { formatFileSize } from '@/lib/analyze-helpers';
 // export-pdf is imported dynamically to avoid SSR issues with jspdf
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  critical: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  high: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  low: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-};
-
-const SEVERITY_LEFT_BORDER: Record<string, string> = {
-  critical: 'border-l-red-500',
-  high: 'border-l-orange-500',
-  medium: 'border-l-amber-500',
-  low: 'border-l-blue-500',
-};
-
-const IMPORTANCE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  critical: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  important: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  nice_to_have: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-};
-
-const LIKELIHOOD_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  high: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  low: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-};
+/* -- Extracted sub-components -- */
+import OverviewTab from '@/components/analyze/OverviewTab';
+import RedFlagsTab from '@/components/analyze/RedFlagsTab';
+import MissingGoodTab from '@/components/analyze/MissingGoodTab';
+import AIAnalysisTab from '@/components/analyze/AIAnalysisTab';
+import AnnotatedTab from '@/components/analyze/AnnotatedTab';
+import VersionsTab from '@/components/analyze/VersionsTab';
 
 /* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
+/*  (Style constants, helpers, ScoreCircle, CopyButton, SectionHeader  */
+/*   have been extracted to lib/analyze-helpers.ts and                  */
+/*   components/analyze/*.tsx)                                          */
 /* ------------------------------------------------------------------ */
-
-
-function getRecommendationIcon(rec: string) {
-  switch (rec) {
-    case 'sign': return CheckCircle2;
-    case 'negotiate': return AlertCircle;
-    case 'walk_away': return XCircle;
-    default: return AlertCircle;
-  }
-}
-
-function getSeverityStyle(severity: string) {
-  return SEVERITY_STYLES[severity.toLowerCase()] ?? SEVERITY_STYLES.medium;
-}
-
-function getSeverityLeftBorder(severity: string) {
-  return SEVERITY_LEFT_BORDER[severity.toLowerCase()] ?? SEVERITY_LEFT_BORDER.medium;
-}
-
-function getImportanceStyle(importance: string) {
-  return IMPORTANCE_STYLES[importance.toLowerCase()] ?? IMPORTANCE_STYLES.important;
-}
-
-function getLikelihoodStyle(likelihood: string) {
-  return LIKELIHOOD_STYLES[likelihood.toLowerCase()] ?? LIKELIHOOD_STYLES.medium;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Annotated Contract Highlighting                                    */
-/* ------------------------------------------------------------------ */
-
-interface AnnotatedFlag {
-  severity: string;
-  clause: string;
-  issue: string;
-  impact?: string;
-  hourlyRateImpact?: number;
-  suggestion?: string;
-}
-
-function getAnnotatedText(text: string, flags: AnnotatedFlag[]): React.ReactNode[] {
-  // Sort flags by clause position in text
-  const highlights: { start: number; end: number; flag: AnnotatedFlag }[] = [];
-
-  for (const flag of flags) {
-    if (!flag.clause) continue;
-    // Find the clause in the contract text (case-insensitive, partial match)
-    const clauseClean = flag.clause.replace(/\.\.\./g, '').trim();
-    if (clauseClean.length < 10) continue;
-    const idx = text.toLowerCase().indexOf(clauseClean.toLowerCase().slice(0, 50));
-    if (idx >= 0) {
-      highlights.push({ start: idx, end: idx + clauseClean.length, flag });
-    }
-  }
-
-  highlights.sort((a, b) => a.start - b.start);
-
-  // Remove overlapping highlights
-  const filtered: typeof highlights = [];
-  for (const h of highlights) {
-    const last = filtered[filtered.length - 1];
-    if (!last || h.start >= last.end) {
-      filtered.push(h);
-    }
-  }
-
-  // Build annotated text
-  const parts: React.ReactNode[] = [];
-  let lastIdx = 0;
-
-  filtered.forEach((h, i) => {
-    if (h.start > lastIdx) {
-      parts.push(text.slice(lastIdx, h.start));
-    }
-    parts.push(
-      <span key={i} className="relative group inline">
-        <mark className={`rounded px-0.5 cursor-pointer ${
-          h.flag.severity === 'critical' ? 'bg-red-100 text-red-900' :
-          h.flag.severity === 'high' ? 'bg-orange-100 text-orange-900' :
-          h.flag.severity === 'medium' ? 'bg-amber-100 text-amber-900' :
-          'bg-blue-100 text-blue-900'
-        }`}>
-          {text.slice(h.start, h.end)}
-        </mark>
-        <span className="absolute bottom-full left-0 z-50 mb-1 hidden w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-lg group-hover:block">
-          <span className="font-semibold text-gray-900">[{h.flag.severity.toUpperCase()}] {h.flag.issue}</span>
-          <br />
-          <span className="text-gray-500 mt-1 block">{h.flag.impact?.slice(0, 100)}</span>
-        </span>
-      </span>
-    );
-    lastIdx = h.end;
-  });
-
-  if (lastIdx < text.length) {
-    parts.push(text.slice(lastIdx));
-  }
-
-  return parts.length > 0 ? parts : [text];
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-/* ------------------------------------------------------------------ */
-/*  Tiny reusable components                                           */
-/* ------------------------------------------------------------------ */
-
-function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard not available */
-    }
-  }, [text]);
-
-  return (
-    <button
-      onClick={copy}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50"
-    >
-      {copied ? (
-        <>
-          <Check className="h-3 w-3 text-emerald-600" />
-          <span className="text-emerald-600">Copied!</span>
-        </>
-      ) : (
-        <>
-          <Copy className="h-3 w-3" />
-          <span>{label}</span>
-        </>
-      )}
-    </button>
-  );
-}
-
-function SectionHeader({
-  icon: Icon,
-  title,
-  count,
-  color = 'text-gray-900',
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  count?: number;
-  color?: string;
-}) {
-  return (
-    <div className="mb-6 flex items-center gap-3">
-      <Icon className={`h-5 w-5 ${color}`} />
-      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-      {count !== undefined && (
-        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-          {count}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Animated Score Circle                                              */
-/* ------------------------------------------------------------------ */
-
-function ScoreCircle({ score }: { score: number }) {
-  const [displayed, setDisplayed] = useState(0);
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const colors = getScoreColor(score);
-
-  useEffect(() => {
-    let raf: number;
-    const start = performance.now();
-    const duration = 1200;
-
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayed(Math.round(eased * score));
-      if (progress < 1) raf = requestAnimationFrame(tick);
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [score]);
-
-  const offset = circumference - (displayed / 100) * circumference;
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="relative h-40 w-40">
-        <svg className="-rotate-90" viewBox="0 0 120 120" width="160" height="160" role="img" aria-label={`Deal score: ${displayed} out of 100`}>
-          <circle cx="60" cy="60" r={radius} fill="none" className="stroke-gray-100" strokeWidth="8" />
-          <circle
-            cx="60"
-            cy="60"
-            r={radius}
-            fill="none"
-            className={colors.ring}
-            strokeWidth="8"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            style={{ transition: 'stroke-dashoffset 0.05s linear' }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-bold ${colors.text}`}>{displayed}</span>
-          <span className="text-xs text-gray-400">/ 100</span>
-        </div>
-      </div>
-      <span className={`text-sm font-medium ${colors.text}`}>{colors.label}</span>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Main Page                                                          */
@@ -585,6 +331,16 @@ Both parties agree to maintain confidentiality of proprietary information shared
       }
       setResult(data as AnalysisResult);
       refreshCredits();
+
+      // Track analysis event with PostHog
+      if (typeof window !== 'undefined' && window.posthog) {
+        window.posthog.capture('analysis_completed', {
+          score: data.overallScore,
+          recommendation: data.recommendation,
+          contractType: data.contractType,
+          redFlags: data.redFlags?.length,
+        });
+      }
 
       // After analysis, prompt signup if not logged in
       if (status === "unauthenticated") {
@@ -1386,636 +1142,42 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   </div>
 
                   <AnimatePresence mode="wait">
-                    {/* ============ OVERVIEW TAB ============ */}
                     {activeTab === 'overview' && (
-                      <motion.div
-                        key="tab-overview"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.25 }}
-                        className="space-y-8"
-                      >
-                        {/* Score + Rate Comparison + Recommendation */}
-                        <div className="grid gap-6 sm:grid-cols-3">
-                          {/* Score */}
-                          <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                            <ScoreCircle score={result.overallScore} />
-                          </div>
-
-                          {/* Rate Comparison */}
-                          <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Rate Comparison</h3>
-
-                            {/* Quoted */}
-                            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                              <p className="text-xs text-gray-400">Your Quoted Rate</p>
-                              <p className="text-xl font-bold text-gray-900">
-                                {currencySymbol}{result.nominalHourlyRate.toFixed(2)}
-                                <span className="text-sm font-normal text-gray-400">/hr</span>
-                              </p>
-                            </div>
-
-                            {/* Real */}
-                            <div
-                              className={`rounded-xl border px-4 py-3 ${
-                                result.effectiveHourlyRate < result.nominalHourlyRate
-                                  ? 'border-red-200 bg-red-50'
-                                  : 'border-emerald-200 bg-emerald-50'
-                              }`}
-                            >
-                              <p
-                                className={`text-xs ${
-                                  result.effectiveHourlyRate < result.nominalHourlyRate
-                                    ? 'text-red-500'
-                                    : 'text-emerald-500'
-                                }`}
-                              >
-                                Your REAL Rate
-                              </p>
-                              <p
-                                className={`text-xl font-bold ${
-                                  result.effectiveHourlyRate < result.nominalHourlyRate
-                                    ? 'text-red-600'
-                                    : 'text-emerald-600'
-                                }`}
-                              >
-                                {currencySymbol}{result.effectiveHourlyRate.toFixed(2)}
-                                <span className="text-sm font-normal opacity-60">/hr</span>
-                              </p>
-                            </div>
-
-                            {result.rateReduction > 0 && (
-                              <p className="text-center">
-                                <span className="inline-block rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-700">
-                                  You&apos;re losing {result.rateReduction.toFixed(1)}% to contract terms
-                                </span>
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Recommendation Badge */}
-                          {(() => {
-                            const config = getRecommendationConfig(result.recommendation);
-                            const RecIcon = getRecommendationIcon(result.recommendation);
-                            return (
-                              <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recommendation</h3>
-                                <div
-                                  className={`flex items-center gap-3 rounded-xl border px-6 py-4 ${config.bg} ${config.border}`}
-                                >
-                                  <RecIcon className={`h-7 w-7 ${config.text}`} />
-                                  <span className={`text-2xl font-extrabold ${config.text}`}>{config.label}</span>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Contextual Score Message */}
-                        <div className={`rounded-xl border px-5 py-4 text-sm font-medium ${
-                          result.overallScore >= 70
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                            : result.overallScore >= 40
-                            ? 'border-amber-200 bg-amber-50 text-amber-800'
-                            : 'border-red-200 bg-red-50 text-red-800'
-                        }`}>
-                          {result.overallScore >= 70
-                            ? 'This contract looks solid. Review the minor issues below.'
-                            : result.overallScore >= 40
-                            ? 'This contract needs negotiation. Use the counter-proposals below.'
-                            : 'This contract is risky. We strongly recommend not signing without major changes.'}
-                        </div>
-
-                        {/* Summary */}
-                        <div>
-                          <SectionHeader icon={Info} title="Analysis Summary" color="text-indigo-600" />
-                          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                            <p className="text-sm leading-relaxed text-gray-600">{result.summary}</p>
-                          </div>
-                        </div>
-
-                        {/* Walk Away Calculator */}
-                        {result.rateReduction > 10 && result.nominalHourlyRate > 0 && (
-                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-                            <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2">
-                              <Calculator className="h-4 w-4" />
-                              The Real Cost of This Deal
-                            </h3>
-                            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                              <div className="rounded-lg bg-white p-3 border border-amber-100">
-                                <p className="text-[10px] uppercase tracking-wider text-amber-600 font-medium">What You Expect</p>
-                                <p className="mt-1 text-xl font-bold text-gray-900">
-                                  {currencySymbol}{(result.nominalHourlyRate * 80).toLocaleString()}
-                                </p>
-                                <p className="text-xs text-gray-500">{currencySymbol}{result.nominalHourlyRate}/hr x 80 hrs</p>
-                              </div>
-                              <div className="rounded-lg bg-white p-3 border border-red-100">
-                                <p className="text-[10px] uppercase tracking-wider text-red-600 font-medium">What You&apos;ll Actually Earn</p>
-                                <p className="mt-1 text-xl font-bold text-red-600">
-                                  {currencySymbol}{(result.effectiveHourlyRate * 80).toLocaleString()}
-                                </p>
-                                <p className="text-xs text-gray-500">{currencySymbol}{result.effectiveHourlyRate.toFixed(2)}/hr x 80 hrs</p>
-                              </div>
-                              <div className="rounded-lg bg-white p-3 border border-gray-200">
-                                <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">Money Left on Table</p>
-                                <p className="mt-1 text-xl font-bold text-gray-900">
-                                  {currencySymbol}{((result.nominalHourlyRate - result.effectiveHourlyRate) * 80).toLocaleString()}
-                                </p>
-                                <p className="text-xs text-gray-500">{result.rateReduction.toFixed(0)}% lost to contract terms</p>
-                              </div>
-                            </div>
-                            <p className="mt-3 text-xs text-amber-700">
-                              Negotiate the red flags above to close this gap. Use the &quot;Generate Negotiation Email&quot; button to get a ready-to-send message.
-                            </p>
-                          </div>
-                        )}
-
-                        {/* "What If" Scenario Simulator */}
-                        {result.nominalHourlyRate > 0 && (
-                          <div className="rounded-xl border border-gray-200 bg-white p-5">
-                            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                              <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
-                              &quot;What If&quot; Scenario Simulator
-                            </h3>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              <div>
-                                <label className="text-xs text-gray-500">Extra revision rounds</label>
-                                <input type="range" min="0" max="10" value={simRevisions} onChange={e => setSimRevisions(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
-                                <span className="text-xs text-gray-700">{simRevisions} extra rounds</span>
-                              </div>
-                              <div>
-                                <label className="text-xs text-gray-500">Payment delay (days late)</label>
-                                <input type="range" min="0" max="90" step="15" value={simPayDelay} onChange={e => setSimPayDelay(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
-                                <span className="text-xs text-gray-700">{simPayDelay} days late</span>
-                              </div>
-                              <div>
-                                <label className="text-xs text-gray-500">Scope creep (extra hours)</label>
-                                <input type="range" min="0" max="100" step="5" value={simScopeCreep} onChange={e => setSimScopeCreep(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
-                                <span className="text-xs text-gray-700">+{simScopeCreep} hours</span>
-                              </div>
-                              <div className="flex flex-col justify-end">
-                                <p className="text-xs text-gray-500 mb-1">Simulated effective rate:</p>
-                                <p className="text-2xl font-bold" style={{ color: simEffectiveRate < result.nominalHourlyRate * 0.5 ? '#DC2626' : simEffectiveRate < result.nominalHourlyRate * 0.75 ? '#D97706' : '#059669' }}>
-                                  {currencySymbol}{simEffectiveRate.toFixed(2)}/hr
-                                </p>
-                                <p className="text-xs text-gray-400">vs {currencySymbol}{result.nominalHourlyRate}/hr quoted</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
+                      <OverviewTab
+                        result={result}
+                        currencySymbol={currencySymbol}
+                        simRevisions={simRevisions}
+                        setSimRevisions={setSimRevisions}
+                        simPayDelay={simPayDelay}
+                        setSimPayDelay={setSimPayDelay}
+                        simScopeCreep={simScopeCreep}
+                        setSimScopeCreep={setSimScopeCreep}
+                        simEffectiveRate={simEffectiveRate}
+                      />
                     )}
-
-                    {/* ============ RED FLAGS TAB ============ */}
                     {activeTab === 'redflags' && (
-                      <motion.div
-                        key="tab-redflags"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.25 }}
-                        className="space-y-6"
-                      >
-                        {result.redFlags.length > 0 ? (() => {
-                          const severityCounts = {
-                            all: result.redFlags.length,
-                            critical: result.redFlags.filter((f) => f.severity === 'critical').length,
-                            high: result.redFlags.filter((f) => f.severity === 'high').length,
-                            medium: result.redFlags.filter((f) => f.severity === 'medium').length,
-                            low: result.redFlags.filter((f) => f.severity === 'low').length,
-                          };
-                          const filteredRedFlags = redFlagFilter === 'all'
-                            ? result.redFlags
-                            : result.redFlags.filter((f) => f.severity === redFlagFilter);
-
-                          return (
-                            <>
-                              <SectionHeader icon={ShieldAlert} title="Red Flags Found" count={result.redFlags.length} color="text-red-600" />
-
-                              {/* Filter bar */}
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Filter className="h-4 w-4 text-gray-400" />
-                                {(['all', 'critical', 'high', 'medium', 'low'] as const).map((sev) => {
-                                  const count = severityCounts[sev];
-                                  if (sev !== 'all' && count === 0) return null;
-                                  const isActive = redFlagFilter === sev;
-                                  return (
-                                    <button
-                                      key={sev}
-                                      type="button"
-                                      onClick={() => setRedFlagFilter(sev)}
-                                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
-                                        isActive
-                                          ? sev === 'all'
-                                            ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
-                                            : sev === 'critical'
-                                            ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                                            : sev === 'high'
-                                            ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
-                                            : sev === 'medium'
-                                            ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                                            : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                      }`}
-                                    >
-                                      {sev === 'all' ? 'All' : sev}
-                                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                        isActive ? 'bg-black/10' : 'bg-gray-100'
-                                      }`}>
-                                        {count}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="space-y-4">
-                                <AnimatePresence mode="popLayout">
-                                  {filteredRedFlags.map((flag, i) => {
-                                    const sev = getSeverityStyle(flag.severity);
-                                    const leftBorder = getSeverityLeftBorder(flag.severity);
-                                    return (
-                                      <motion.div
-                                        key={`${flag.severity}-${flag.clause}-${i}`}
-                                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                                        layout
-                                        className={`rounded-xl border border-gray-200 border-l-4 ${leftBorder} bg-white p-5 shadow-sm`}
-                                      >
-                                        {/* Top row: severity + rate impact */}
-                                        <div className="mb-4 flex flex-wrap items-center gap-3">
-                                          <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${sev.bg} ${sev.text} ${sev.border}`}>
-                                            {flag.severity}
-                                          </span>
-                                          {flag.hourlyRateImpact !== 0 && (
-                                            <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                                              <TrendingDown className="h-3 w-3" />
-                                              {flag.hourlyRateImpact > 0 ? '-' : '+'}
-                                              {currencySymbol}{Math.abs(flag.hourlyRateImpact).toFixed(2)}/hr
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        {/* Clause quote */}
-                                        <div className="mb-4 rounded-lg bg-gray-50 p-3">
-                                          <p className="text-sm font-mono text-gray-600 italic">
-                                            &ldquo;{flag.clause}&rdquo;
-                                          </p>
-                                        </div>
-
-                                        {/* Issue & Impact */}
-                                        <div className="mb-4 space-y-2 text-sm">
-                                          <p className="text-gray-600">
-                                            <span className="font-semibold text-gray-900">Issue: </span>
-                                            {flag.issue}
-                                          </p>
-                                          <p className="text-gray-600">
-                                            <span className="font-semibold text-gray-900">Financial Impact: </span>
-                                            {flag.impact}
-                                          </p>
-                                        </div>
-
-                                        {/* Suggestion */}
-                                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                                          <div className="mb-2 flex items-center justify-between">
-                                            <span className="text-xs font-semibold text-emerald-700">Suggested Counter-Proposal</span>
-                                            <CopyButton text={flag.suggestion} label="Copy" />
-                                          </div>
-                                          <p className="text-sm leading-relaxed text-gray-600">{flag.suggestion}</p>
-                                        </div>
-                                      </motion.div>
-                                    );
-                                  })}
-                                </AnimatePresence>
-                                {filteredRedFlags.length === 0 && (
-                                  <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                                    No red flags match this filter.
-                                  </div>
-                                )}
-                              </div>
-                            </>
-                          );
-                        })() : (
-                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-8 text-center text-sm text-emerald-700">
-                            No red flags found in this contract. That&apos;s a good sign!
-                          </div>
-                        )}
-                      </motion.div>
+                      <RedFlagsTab
+                        result={result}
+                        currencySymbol={currencySymbol}
+                        redFlagFilter={redFlagFilter}
+                        setRedFlagFilter={setRedFlagFilter}
+                      />
                     )}
-
-                    {/* ============ MISSING & GOOD TAB ============ */}
                     {activeTab === 'missing' && (
-                      <motion.div
-                        key="tab-missing"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.25 }}
-                        className="space-y-10"
-                      >
-                        {/* Missing Clauses */}
-                        {result.missingClauses.length > 0 ? (() => {
-                          const importanceCounts = {
-                            all: result.missingClauses.length,
-                            critical: result.missingClauses.filter((c) => c.importance === 'critical').length,
-                            important: result.missingClauses.filter((c) => c.importance === 'important').length,
-                            nice_to_have: result.missingClauses.filter((c) => c.importance === 'nice_to_have').length,
-                          };
-                          const importanceLabels: Record<string, string> = {
-                            all: 'All',
-                            critical: 'Critical',
-                            important: 'Important',
-                            nice_to_have: 'Nice to Have',
-                          };
-                          const filteredClauses = missingClauseFilter === 'all'
-                            ? result.missingClauses
-                            : result.missingClauses.filter((c) => c.importance === missingClauseFilter);
-
-                          return (
-                            <section>
-                              <SectionHeader icon={FileWarning} title="Missing Protections" count={result.missingClauses.length} color="text-amber-600" />
-
-                              {/* Filter bar */}
-                              <div className="mb-5 flex flex-wrap items-center gap-2">
-                                <Filter className="h-4 w-4 text-gray-400" />
-                                {(['all', 'critical', 'important', 'nice_to_have'] as const).map((imp) => {
-                                  const count = importanceCounts[imp];
-                                  if (imp !== 'all' && count === 0) return null;
-                                  const isActive = missingClauseFilter === imp;
-                                  return (
-                                    <button
-                                      key={imp}
-                                      type="button"
-                                      onClick={() => setMissingClauseFilter(imp)}
-                                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                                        isActive
-                                          ? imp === 'all'
-                                            ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
-                                            : imp === 'critical'
-                                            ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                                            : imp === 'important'
-                                            ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
-                                            : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                      }`}
-                                    >
-                                      {importanceLabels[imp]}
-                                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                        isActive ? 'bg-black/10' : 'bg-gray-100'
-                                      }`}>
-                                        {count}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="space-y-4">
-                                <AnimatePresence mode="popLayout">
-                                  {filteredClauses.map((clause, i) => {
-                                    const imp = getImportanceStyle(clause.importance);
-                                    return (
-                                      <motion.div
-                                        key={`${clause.importance}-${clause.name}-${i}`}
-                                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                                        layout
-                                        className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                                      >
-                                        <div className="mb-3 flex flex-wrap items-center gap-3">
-                                          <h3 className="text-sm font-semibold text-gray-900">{clause.name}</h3>
-                                          <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${imp.bg} ${imp.text} ${imp.border}`}>
-                                            {clause.importance}
-                                          </span>
-                                        </div>
-                                        <p className="mb-4 text-sm text-gray-600">{clause.description}</p>
-
-                                        {/* Suggested language */}
-                                        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-                                          <div className="mb-2 flex items-center justify-between">
-                                            <span className="text-xs font-semibold text-indigo-700">Add This Language</span>
-                                            <CopyButton text={clause.suggestedLanguage} label="Copy" />
-                                          </div>
-                                          <p className="text-sm leading-relaxed text-gray-600">{clause.suggestedLanguage}</p>
-                                        </div>
-                                      </motion.div>
-                                    );
-                                  })}
-                                </AnimatePresence>
-                                {filteredClauses.length === 0 && (
-                                  <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                                    No missing clauses match this filter.
-                                  </div>
-                                )}
-                              </div>
-                            </section>
-                          );
-                        })() : (
-                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-8 text-center text-sm text-emerald-700">
-                            No missing protections detected.
-                          </div>
-                        )}
-
-                        {/* Green Flags */}
-                        <section>
-                          <SectionHeader icon={ShieldCheck} title="Green Flags" count={result.greenFlags.length} color="text-emerald-600" />
-
-                          {result.greenFlags.length > 0 ? (
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              {result.greenFlags.map((flag, i) => (
-                                <div
-                                  key={i}
-                                  className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
-                                >
-                                  <p className="mb-2 text-sm font-semibold text-emerald-700">{flag.clause}</p>
-                                  <p className="text-sm leading-relaxed text-gray-600">{flag.benefit}</p>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="rounded-xl border border-red-200 bg-red-50 p-6">
-                              <div className="flex items-start gap-3">
-                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                                <p className="text-sm leading-relaxed text-gray-600">
-                                  No positive protections found in this contract. This is a red flag in itself — a well-drafted contract should include protections for both parties.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </section>
-                      </motion.div>
+                      <MissingGoodTab
+                        result={result}
+                        missingClauseFilter={missingClauseFilter}
+                        setMissingClauseFilter={setMissingClauseFilter}
+                      />
                     )}
-
-                    {/* ============ AI ANALYSIS TAB ============ */}
                     {activeTab === 'ai' && (
-                      <motion.div
-                        key="tab-ai"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.25 }}
-                        className="space-y-8"
-                      >
-                        {/* AI-Enhanced Insights */}
-                        {getSettings().showAiInsights !== false && (
-                          <>
-                            {result.aiInsights ? (
-                              <section>
-                                <SectionHeader icon={Sparkles} title="AI-Powered Deep Analysis" color="text-indigo-600" />
-                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6">
-                                  <div
-                                    className="text-sm leading-relaxed text-gray-600 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_em]:italic [&_em]:text-gray-900 [&_ul]:my-2 [&_li]:text-gray-600"
-                                    dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(result.aiInsights) }}
-                                  />
-                                </div>
-                              </section>
-                            ) : (
-                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                                AI insights are available when you provide a Claude API key. Enable it in the analysis form to get deeper contract analysis.
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* Country-Specific Legal Context */}
-                        {getSettings().showCountryContext !== false && result.countryContext && (
-                          <section>
-                            <SectionHeader icon={Info} title="Legal Context for Your Country" color="text-blue-600" />
-                            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
-                              <div className="text-sm leading-relaxed text-gray-600 whitespace-pre-line">
-                                {result.countryContext}
-                              </div>
-                            </div>
-                          </section>
-                        )}
-
-                        {/* Scope Risks */}
-                        {result.scopeRisks.length > 0 && (
-                          <section>
-                            <SectionHeader icon={AlertTriangle} title="Scope Creep Risks" count={result.scopeRisks.length} color="text-orange-600" />
-
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              {result.scopeRisks.map((risk, i) => {
-                                const lk = getLikelihoodStyle(risk.likelihood);
-                                return (
-                                  <div
-                                    key={i}
-                                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                                  >
-                                    <div className="mb-3 flex items-center gap-2">
-                                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${lk.bg} ${lk.text} ${lk.border}`}>
-                                        {risk.likelihood} likelihood
-                                      </span>
-                                    </div>
-                                    <p className="mb-2 text-sm text-gray-900">{risk.risk}</p>
-                                    <p className="text-sm text-gray-400">
-                                      <span className="font-semibold text-gray-600">Potential cost: </span>
-                                      {risk.potentialCost}
-                                    </p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </section>
-                        )}
-                      </motion.div>
+                      <AIAnalysisTab result={result} />
                     )}
-
-                    {/* ============ ANNOTATED CONTRACT TAB ============ */}
                     {activeTab === 'annotated' && (
-                      <motion.div
-                        key="tab-annotated"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.25 }}
-                      >
-                        <div className="rounded-xl border border-gray-200 bg-white p-6">
-                          <p className="mb-4 text-sm text-gray-500">Red flag clauses are highlighted in the original contract text. Hover over highlights to see details.</p>
-                          {contractText ? (
-                            <div className="font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap break-words">
-                              {getAnnotatedText(contractText, result.redFlags)}
-                            </div>
-                          ) : (
-                            <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                              Original contract text is not available. This tab works when you paste or upload a contract directly.
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
+                      <AnnotatedTab contractText={contractText} redFlags={result.redFlags} />
                     )}
-
-                    {/* ============ VERSIONS TAB ============ */}
                     {activeTab === 'versions' && (
-                      <motion.div
-                        key="tab-versions"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.25 }}
-                        className="space-y-4"
-                      >
-                        <h2 className="text-lg font-semibold text-gray-900">Version History</h2>
-                        <p className="text-sm text-gray-500">Track how your contract score changes across analyses.</p>
-
-                        {versions.length <= 1 ? (
-                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center">
-                            <GitBranch className="mx-auto mb-3 h-8 w-8 text-gray-300" />
-                            <p className="text-sm text-gray-500">Analyze this contract again after making changes to see version comparisons.</p>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            {/* Timeline line */}
-                            <div className="absolute left-[19px] top-6 bottom-6 w-0.5 bg-gray-200" />
-
-                            <div className="space-y-3">
-                              {versions.map((v, i) => {
-                                const prev = i > 0 ? versions[i - 1] : null;
-                                const diff = prev ? v.score - prev.score : 0;
-                                return (
-                                  <div key={v.id || i} className="flex items-start gap-3">
-                                    <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${
-                                      v.score >= 65 ? 'border-emerald-200 bg-emerald-50' :
-                                      v.score >= 35 ? 'border-amber-200 bg-amber-50' :
-                                      'border-red-200 bg-red-50'
-                                    }`}>
-                                      <span className={`text-xs font-bold ${
-                                        v.score >= 65 ? 'text-emerald-700' :
-                                        v.score >= 35 ? 'text-amber-700' :
-                                        'text-red-700'
-                                      }`}>{v.score}</span>
-                                    </div>
-                                    <div className="flex-1 rounded-lg border border-gray-200 bg-white p-3">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-sm font-medium text-gray-900">v{versions.length - i}</span>
-                                          {prev && diff !== 0 && (
-                                            <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                              {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                              {diff > 0 ? '+' : ''}{diff}
-                                            </span>
-                                          )}
-                                          <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                                            v.rec === 'sign' ? 'bg-emerald-50 text-emerald-700' :
-                                            v.rec === 'negotiate' ? 'bg-amber-50 text-amber-700' :
-                                            'bg-red-50 text-red-700'
-                                          }`}>{v.rec.replace('_', ' ')}</span>
-                                        </div>
-                                        <span className="text-[11px] text-gray-400">{new Date(v.date).toLocaleDateString()}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
+                      <VersionsTab versions={versions} />
                     )}
                   </AnimatePresence>
 

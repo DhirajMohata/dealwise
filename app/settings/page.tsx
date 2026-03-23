@@ -202,6 +202,110 @@ export default function SettingsPage() {
             <p className="mt-2 text-gray-600">Customize your DEALWISE experience.</p>
           </motion.div>
 
+          {/* -- Team (moved to top for visibility) -- */}
+          <motion.section variants={fadeUp} className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-6 shadow-md">
+            <div className="mb-4 flex items-center gap-3">
+              <Users className="h-5 w-5 text-indigo-500" />
+              <h2 className="text-sm font-semibold text-gray-900">Team</h2>
+            </div>
+
+            {!currentTeam ? (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-600">Create a team to collaborate on contract analyses with your colleagues.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="Team name"
+                    className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                  <button
+                    onClick={handleCreateTeam}
+                    disabled={teamLoading || !teamName.trim()}
+                    className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Create Team
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <p className="text-xs font-medium text-gray-400">Team Name</p>
+                  <p className="mt-0.5 text-sm font-semibold text-gray-900">{currentTeam.name}</p>
+                </div>
+
+                {['owner', 'admin'].includes(userTeamRole) && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                      <UserPlus className="mr-1 inline h-3 w-3" />
+                      Invite Member
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="member@example.com"
+                        className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      <button
+                        onClick={handleInviteMember}
+                        disabled={teamLoading || !inviteEmail.trim()}
+                        className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Invite
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-2 text-xs font-medium text-gray-600">Members</p>
+                  <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-200 overflow-hidden">
+                    {teamMembers.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-400">No members yet</div>
+                    ) : (
+                      teamMembers.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-900">{member.email}</span>
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              member.role === 'owner' ? 'bg-purple-50 text-purple-700' :
+                              member.role === 'admin' ? 'bg-indigo-50 text-indigo-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {member.role}
+                            </span>
+                            {!member.accepted && (
+                              <span className="inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                pending
+                              </span>
+                            )}
+                          </div>
+                          {['owner', 'admin'].includes(userTeamRole) && member.role !== 'owner' && (
+                            <button
+                              onClick={() => handleRemoveMember(member.email)}
+                              className="rounded-md p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                              title="Remove member"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {teamMessage && (
+              <p className="mt-3 text-xs font-medium text-indigo-600">{teamMessage}</p>
+            )}
+          </motion.section>
+
           {/* -- AI API Key -- */}
           <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
@@ -425,111 +529,6 @@ export default function SettingsPage() {
             </div>
           </motion.section>
 
-          {/* -- Team -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
-            <div className="mb-4 flex items-center gap-3">
-              <Users className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-gray-900">Team</h2>
-            </div>
-
-            {!currentTeam ? (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-600">Create a team to collaborate on contract analyses.</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="Team name"
-                    className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <button
-                    onClick={handleCreateTeam}
-                    disabled={teamLoading || !teamName.trim()}
-                    className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    Create Team
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <p className="text-xs font-medium text-gray-400">Team Name</p>
-                  <p className="mt-0.5 text-sm font-semibold text-gray-900">{currentTeam.name}</p>
-                </div>
-
-                {/* Invite form — only for owner/admin */}
-                {['owner', 'admin'].includes(userTeamRole) && (
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-gray-600">
-                      <UserPlus className="mr-1 inline h-3 w-3" />
-                      Invite Member
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        placeholder="member@example.com"
-                        className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                      />
-                      <button
-                        onClick={handleInviteMember}
-                        disabled={teamLoading || !inviteEmail.trim()}
-                        className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-50"
-                      >
-                        Invite
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Members list */}
-                <div>
-                  <p className="mb-2 text-xs font-medium text-gray-600">Members</p>
-                  <div className="rounded-lg border border-gray-200 divide-y divide-gray-200 overflow-hidden">
-                    {teamMembers.length === 0 ? (
-                      <div className="px-4 py-3 text-sm text-gray-400">No members yet</div>
-                    ) : (
-                      teamMembers.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between px-4 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-900">{member.email}</span>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              member.role === 'owner' ? 'bg-purple-50 text-purple-700' :
-                              member.role === 'admin' ? 'bg-indigo-50 text-indigo-700' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {member.role}
-                            </span>
-                            {!member.accepted && (
-                              <span className="inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                                pending
-                              </span>
-                            )}
-                          </div>
-                          {['owner', 'admin'].includes(userTeamRole) && member.role !== 'owner' && (
-                            <button
-                              onClick={() => handleRemoveMember(member.email)}
-                              className="rounded-md p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                              title="Remove member"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {teamMessage && (
-              <p className="mt-3 text-xs font-medium text-indigo-600">{teamMessage}</p>
-            )}
-          </motion.section>
 
           {/* -- Integrations -- */}
           <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
