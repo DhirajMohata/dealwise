@@ -4,15 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  Key,
   Globe,
   DollarSign,
   Sparkles,
   Trash2,
-  Info,
   Check,
-  Eye,
-  EyeOff,
   CreditCard,
   Users,
   UserPlus,
@@ -37,23 +33,13 @@ const stagger = {
   show: { transition: { staggerChildren: 0.06 } },
 };
 
-const CREDIT_COSTS_TABLE = [
-  { action: 'Contract Analysis', cost: '1 credit' },
-  { action: 'AI-Enhanced Analysis', cost: '2 credits' },
-  { action: 'Chat Message', cost: '1 credit' },
-  { action: 'Contract Comparison', cost: '2 credits' },
-  { action: 'Bulk Analysis (per file)', cost: '1 credit' },
-  { action: 'PDF Export', cost: 'Free' },
-];
 
 export default function SettingsPage() {
   const { data: session } = useSession();
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
-  const [totalUsed, setTotalUsed] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const { credits, plan, loading: creditsLoading } = useCredits();
+  const { credits, plan } = useCredits();
 
   // Team state
   const [teamName, setTeamName] = useState('');
@@ -153,25 +139,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setSettings(getSettings());
-    // Fetch totalUsed separately (not provided by useCredits)
-    fetch('/api/credits')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) setTotalUsed(data.totalUsed);
-      })
-      .catch(() => {});
     loadTeams();
   }, []);
 
   function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     const updated = saveSettings({ [key]: value });
     setSettings(updated);
-  }
-
-  function handleApiKeySave(key: string) {
-    updateSetting('savedApiKey', key);
-    setKeySaved(true);
-    setTimeout(() => setKeySaved(false), 2000);
   }
 
   function handleClearHistory() {
@@ -306,96 +279,7 @@ export default function SettingsPage() {
             )}
           </motion.section>
 
-          {/* -- AI API Key -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
-            <div className="mb-4 flex items-center gap-3">
-              <Key className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-gray-900">AI API Key</h2>
-            </div>
-            <p className="mb-4 text-xs text-gray-600">
-              Save your Claude/Anthropic API key so you don&apos;t need to re-enter it every time.
-            </p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={settings.savedApiKey}
-                  onChange={(e) => updateSetting('savedApiKey', e.target.value)}
-                  placeholder="sk-ant-api03-..."
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <button
-                onClick={() => handleApiKeySave(settings.savedApiKey)}
-                className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
-              >
-                {keySaved ? (
-                  <span className="flex items-center gap-1">
-                    <Check className="h-4 w-4" /> Saved
-                  </span>
-                ) : (
-                  'Save'
-                )}
-              </button>
-            </div>
-            <p className="mt-2 flex items-center gap-1 text-[10px] text-gray-400">
-              <Info className="h-3 w-3" />
-              Key saved securely in your browser. Never sent to our servers.
-            </p>
-          </motion.section>
 
-          {/* -- Credits -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
-            <div className="mb-4 flex items-center gap-3">
-              <CreditCard className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-gray-900">Credits</h2>
-            </div>
-            {credits !== null ? (
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <p className="text-xs font-medium text-gray-400">Current Balance</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {plan === 'admin' ? 'Unlimited' : credits}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <p className="text-xs font-medium text-gray-400">Total Used</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">{totalUsed ?? '...'}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <p className="text-xs font-medium text-gray-400">Plan</p>
-                    <p className="mt-1 text-2xl font-bold capitalize text-gray-900">{plan}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-2 text-xs font-medium text-gray-600">Credit Costs</p>
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    <table className="w-full">
-                      <tbody className="divide-y divide-gray-200">
-                        {CREDIT_COSTS_TABLE.map((row) => (
-                          <tr key={row.action}>
-                            <td className="px-4 py-2.5 text-sm text-gray-900">{row.action}</td>
-                            <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-600">{row.cost}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">Loading credit information...</p>
-            )}
-          </motion.section>
 
           {/* -- Billing & Plan -- */}
           <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
@@ -606,30 +490,6 @@ export default function SettingsPage() {
             </p>
           </motion.section>
 
-          {/* -- About -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
-            <div className="mb-4 flex items-center gap-3">
-              <Info className="h-5 w-5 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-gray-900">About</h2>
-            </div>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>
-                <span className="font-medium text-gray-900">DEALWISE</span> v0.1.0
-              </p>
-              <p>
-                Built with Next.js, TypeScript, Tailwind CSS, and Framer Motion.
-              </p>
-              <p>
-                AI analysis powered by Anthropic Claude.
-              </p>
-              <Link
-                href="/"
-                className="mt-2 inline-block text-indigo-600 transition-colors hover:text-indigo-700"
-              >
-                Visit landing page &rarr;
-              </Link>
-            </div>
-          </motion.section>
         </motion.div>
       </div>
 
