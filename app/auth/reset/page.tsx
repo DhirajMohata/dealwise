@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, CheckCircle, ArrowLeft } from "lucide-react";
+import Logo from '@/components/Logo';
 
 function ResetForm() {
   const searchParams = useSearchParams();
@@ -83,7 +84,9 @@ function ResetForm() {
     <div className="flex min-h-screen items-center justify-center bg-white px-6 py-12">
       <div className="w-full max-w-[400px]">
         <div className="mb-8">
-          <Link href="/" className="text-xl font-semibold text-gray-900 tracking-tight">dealwise</Link>
+          <Link href="/">
+            <Logo />
+          </Link>
         </div>
 
         {/* Success state after password reset */}

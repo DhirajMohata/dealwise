@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, Loader2, Check, Shield } from "lucide-react";
+import Logo from '@/components/Logo';
 
 function SignInForm() {
   const router = useRouter();
@@ -53,13 +54,8 @@ function SignInForm() {
       {/* LEFT — Brand panel (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-[45%] flex-col justify-between bg-indigo-600 p-12 text-white">
         <div>
-          <Link href="/" className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" className="text-white flex-shrink-0">
-              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="currentColor" opacity="0.2"/>
-              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-              <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>dealwise</span>
+          <Link href="/">
+            <Logo size="lg" variant="white" />
           </Link>
         </div>
 
@@ -100,13 +96,8 @@ function SignInForm() {
         <div className="w-full max-w-[400px]">
           {/* Mobile logo */}
           <div className="mb-8 lg:hidden">
-            <Link href="/" className="flex items-center gap-1.5 text-xl font-semibold text-gray-900 tracking-tight">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-indigo-600 flex-shrink-0">
-                <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="currentColor" opacity="0.12"/>
-                <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-                <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>deal<span className="text-indigo-600">wise</span></span>
+            <Link href="/" className="flex items-center">
+              <Logo />
             </Link>
           </div>
 

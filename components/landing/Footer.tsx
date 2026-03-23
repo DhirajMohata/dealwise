@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 const footerLinks = {
   product: [
@@ -30,12 +30,7 @@ export default function Footer() {
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 sm:col-span-1">
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-indigo-600" />
-              <span className="text-[16px] font-bold text-gray-900">
-                dealwise
-              </span>
-            </div>
+            <Logo />
             <p className="mt-3 text-[13px] leading-relaxed text-gray-400 max-w-[200px]">
               AI-powered contract analysis for freelancers
             </p>

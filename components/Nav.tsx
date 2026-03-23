@@ -9,6 +9,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+import Logo from '@/components/Logo';
 import { useCredits } from '@/components/CreditsProvider';
 
 export default function Nav() {
@@ -49,25 +50,17 @@ export default function Nav() {
     <nav aria-label="Main navigation" className="sticky top-0 z-50 h-14 border-b border-gray-100 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
         {/* Logo */}
-        <Link href={isLoggedIn ? '/dashboard' : '/'} className="flex items-center gap-1.5">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-indigo-600 flex-shrink-0">
-            <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="currentColor" opacity="0.12"/>
-            <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-            <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span className="text-[17px] font-semibold tracking-tight" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
-            deal<span className="text-indigo-600">wise</span>
-          </span>
+        <Link href={isLoggedIn ? '/dashboard' : '/'} className="flex items-center">
+          <Logo />
         </Link>
 
         {/* Center nav links (desktop) */}
         <div className="hidden items-center gap-6 md:flex">
-          <Link href="/analyze" className={linkClass('/analyze')}>
-            {t('analyze')}
-          </Link>
-
           {isLoggedIn ? (
             <>
+              <Link href="/analyze" className={linkClass('/analyze')}>
+                {t('analyze')}
+              </Link>
               <Link href="/dashboard" className={linkClass('/dashboard')}>
                 {t('dashboard')}
               </Link>
@@ -229,17 +222,16 @@ export default function Nav() {
             className="overflow-hidden border-t border-gray-100 bg-white sm:hidden"
           >
             <div className="flex flex-col gap-3 px-6 py-4">
-              <Link
-                href="/analyze"
-                className={mobileLinkClass('/analyze')}
-                onClick={() => setMobileOpen(false)}
-              >
-                <Search className="h-4 w-4" />
-                {t('analyze')}
-              </Link>
-
               {isLoggedIn ? (
                 <>
+                  <Link
+                    href="/analyze"
+                    className={mobileLinkClass('/analyze')}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Search className="h-4 w-4" />
+                    {t('analyze')}
+                  </Link>
                   <Link
                     href="/dashboard"
                     className={mobileLinkClass('/dashboard')}
