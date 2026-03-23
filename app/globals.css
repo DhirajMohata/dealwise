@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
   /* Background */
@@ -121,4 +122,10 @@ body {
 @keyframes gradientShift {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
+}
+
+/* dvh fallback for older browsers */
+@supports not (height: 100dvh) {
+  .h-dvh { height: 100vh !important; }
+  .min-h-dvh { min-height: 100vh !important; }
 }

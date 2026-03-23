@@ -12,14 +12,13 @@ export interface UserCredits {
 // Credit costs per action
 export const CREDIT_COSTS = {
   analyze: 1,      // 1 credit per analysis
-  aiAnalyze: 2,    // 2 credits if AI enhancement used
-  chat: 1,         // 1 credit per chat message
-  compare: 2,      // 2 credits per comparison (2 analyses)
+  chat: 0,         // free
+  compare: 0,      // free
   bulk: 1,         // 1 credit per file in bulk
   pdfExport: 0,    // free
 } as const;
 
-export const DEFAULT_CREDITS = 50;
+export const DEFAULT_CREDITS = 5;
 
 interface CreditRow {
   email: string;
@@ -101,6 +100,17 @@ export async function deductCredits(email: string, amount: number): Promise<{ su
     .eq('credits', user.credits); // Only update if credits haven't changed!
 
   if (error) return { success: false, remaining: user.credits, error: 'Please try again.' };
+
+  // Send low credits warning if remaining < 5
+  const remaining = user.credits - amount;
+  if (remaining > 0 && remaining < 5) {
+    import('./email').then(({ sendEmail, lowCreditsEmailHTML }) => {
+      sendEmail(email, "You're running low on credits",
+        lowCreditsEmailHTML(email.split('@')[0], remaining)
+      ).catch(() => {});
+    }).catch(() => {});
+  }
+
   return { success: true, remaining: user.credits - amount };
 }
 

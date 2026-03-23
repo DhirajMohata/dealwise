@@ -12,19 +12,18 @@ import {
   Award,
   Search,
   ArrowRight,
-  BarChart3,
-  MessageSquare,
-  Settings,
-  FileDown,
   Eye,
-  ArrowLeft,
   Trash2,
+  X,
+  Users,
 } from 'lucide-react';
 import Nav from '@/components/Nav';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ConfirmModal from '@/components/ConfirmModal';
 import { getHistory, removeHistoryEntry, type HistoryEntry } from '@/lib/auth';
 import { getScoreColor, getRecommendationConfig, formatDate } from '@/lib/constants';
+import { serifStyle } from '@/components/ui/index';
+import { useCredits } from '@/components/CreditsProvider';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -57,16 +56,22 @@ const fadeUp = {
 export default function DashboardPage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const { credits, plan, loading: creditsLoading, refreshCredits } = useCredits();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [search, setSearch] = useState('');
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string }>({ isOpen: false, id: '' });
+  const [dismissedBanner, setDismissedBanner] = useState(false);
+  const [viewMode, setViewMode] = useState<'my' | 'team'>('my');
+  const [teamHistory, setTeamHistory] = useState<HistoryEntry[]>([]);
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [teamLoading, setTeamLoading] = useState(false);
   const ITEMS_PER_PAGE = 15;
 
   const loadHistory = useCallback(async () => {
     // Start with localStorage history
-    const localHistory = getHistory();
+    const localHistory = getHistory(session?.user?.email ?? undefined);
 
     // If authenticated, also fetch from server and merge
     if (session?.user?.email) {
@@ -121,12 +126,70 @@ export default function DashboardPage() {
     setHistory(localHistory);
   }, [session?.user?.email]);
 
+  // Load team info on mount
+  const loadTeamInfo = useCallback(async () => {
+    if (!session?.user?.email) return;
+    try {
+      const res = await fetch('/api/teams');
+      if (!res.ok) return;
+      const data = await res.json();
+      const owned = data.ownedTeams?.[0];
+      const membership = data.memberships?.[0];
+      const team = owned || membership?.teams;
+      if (team?.id) setTeamId(team.id);
+    } catch {}
+  }, [session?.user?.email]);
+
+  const loadTeamHistory = useCallback(async () => {
+    if (!teamId) return;
+    setTeamLoading(true);
+    try {
+      const res = await fetch(`/api/history?teamId=${teamId}`);
+      if (res.ok) {
+        const serverData = await res.json();
+        const entries: HistoryEntry[] = (serverData as Array<{
+          id: string;
+          created_at: string;
+          overall_score: number;
+          recommendation: string;
+          contract_snippet: string;
+          currency: string;
+          nominal_rate: number;
+          effective_rate: number;
+          rate_reduction: number;
+          full_result: string;
+        }>).map((entry) => ({
+          id: entry.id,
+          date: entry.created_at,
+          overallScore: entry.overall_score,
+          recommendation: entry.recommendation as 'sign' | 'negotiate' | 'walk_away',
+          summary: '',
+          contractSnippet: entry.contract_snippet,
+          currency: entry.currency,
+          nominalHourlyRate: entry.nominal_rate,
+          effectiveHourlyRate: entry.effective_rate,
+          rateReduction: entry.rate_reduction,
+          fullResult: entry.full_result,
+        }));
+        setTeamHistory(entries);
+      }
+    } catch {}
+    setTeamLoading(false);
+  }, [teamId]);
+
   useEffect(() => {
     loadHistory();
+    loadTeamInfo();
     setMounted(true);
-  }, [loadHistory]);
+  }, [loadHistory, loadTeamInfo]);
 
-  /* ---- Computed stats ---- */
+  useEffect(() => {
+    if (viewMode === 'team' && teamId) {
+      loadTeamHistory();
+    }
+  }, [viewMode, teamId, loadTeamHistory]);
+
+  /* ---- Computed stats (always based on user's own history) ---- */
   const stats = useMemo(() => {
     const total = history.length;
     const avgScore = total > 0 ? Math.round(history.reduce((s, h) => s + h.overallScore, 0) / total) : 0;
@@ -149,8 +212,9 @@ export default function DashboardPage() {
   function handleDeleteConfirm() {
     const id = deleteConfirm.id;
     setDeleteConfirm({ isOpen: false, id: '' });
-    removeHistoryEntry(id);
-    setHistory(getHistory());
+    const email = session?.user?.email ?? undefined;
+    removeHistoryEntry(id, email);
+    setHistory(getHistory(email));
     // Also delete from server if authenticated
     if (session?.user?.email) {
       fetch(`/api/history?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
@@ -158,10 +222,12 @@ export default function DashboardPage() {
   }
 
   /* ---- Filtered entries ---- */
+  const activeHistory = viewMode === 'team' ? teamHistory : history;
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return history;
+    if (!search.trim()) return activeHistory;
     const q = search.toLowerCase();
-    return history.filter(
+    return activeHistory.filter(
       (h) =>
         h.contractSnippet.toLowerCase().includes(q) ||
         h.recommendation.toLowerCase().includes(q) ||
@@ -172,7 +238,7 @@ export default function DashboardPage() {
         (q === 'walk away' && h.recommendation === 'walk_away') ||
         (q === 'walk_away' && h.recommendation === 'walk_away')
     );
-  }, [history, search]);
+  }, [activeHistory, search]);
 
   // Reset to page 1 when search changes
   useEffect(() => { setCurrentPage(1); }, [search]);
@@ -182,21 +248,6 @@ export default function DashboardPage() {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
-
-  /* ---- Score distribution ---- */
-  const distribution = useMemo(() => {
-    const buckets = [0, 0, 0, 0, 0]; // 0-20, 21-40, 41-60, 61-80, 81-100
-    history.forEach((h) => {
-      if (h.overallScore <= 20) buckets[0]++;
-      else if (h.overallScore <= 40) buckets[1]++;
-      else if (h.overallScore <= 60) buckets[2]++;
-      else if (h.overallScore <= 80) buckets[3]++;
-      else buckets[4]++;
-    });
-    return buckets;
-  }, [history]);
-
-  const maxBucket = Math.max(...distribution, 1);
 
   if (!mounted) {
     return (
@@ -213,21 +264,40 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-    <div className="min-h-screen bg-white">
+    <div className="h-dvh overflow-hidden flex flex-col bg-gradient-to-b from-indigo-50/30 via-white to-white">
       <Nav />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <Link
-              href="/"
-              className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+      {!dismissedBanner && plan === 'free' && credits !== null && credits <= 2 && (
+        <div className="mx-auto max-w-5xl px-6 pt-4">
+          <div className="relative rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 text-white shadow-lg">
+            <button
+              onClick={() => setDismissedBanner(true)}
+              className="absolute right-3 top-3 rounded-md p-1 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Home
+              <X className="h-4 w-4" />
+            </button>
+            <p className="text-sm font-medium">
+              {credits === 0 ? "You've used all your free analyses" : `You have ${credits} analysis${credits === 1 ? '' : 'es'} left`}
+            </p>
+            <p className="mt-1 text-sm text-indigo-100">
+              Upgrade to Freelancer for 30 analyses/month — just $9.99
+            </p>
+            <Link
+              href="/pricing"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+            >
+              Join Waitlist
+              <ArrowRight className="h-4 w-4" />
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
+          </div>
+        </div>
+      )}
+
+      <main className="flex-1 overflow-y-auto px-6 py-6">
+        {/* Header */}
+        <div className="mb-10 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900" style={serifStyle}>Dashboard</h1>
             <p className="mt-1 text-sm text-gray-500">
               Track your contract analyses and insights
             </p>
@@ -235,7 +305,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ---- Stat Cards ---- */}
-        <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
               icon: FileText,
@@ -268,7 +338,7 @@ export default function DashboardPage() {
               initial="hidden"
               animate="visible"
               variants={fadeUp}
-              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md"
             >
               <div className="mb-4 flex items-center gap-3">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-full ${card.color}`}>
@@ -287,10 +357,37 @@ export default function DashboardPage() {
           initial="hidden"
           animate="visible"
           variants={fadeUp}
-          className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm"
+          className="mb-10 rounded-2xl border border-gray-200 bg-white shadow-sm"
         >
           <div className="flex flex-col gap-4 border-b border-gray-200 p-6 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Analyses</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-gray-900">Recent Analyses</h2>
+              {teamId && (
+                <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  <button
+                    onClick={() => setViewMode('my')}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      viewMode === 'my'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    My Analyses
+                  </button>
+                  <button
+                    onClick={() => setViewMode('team')}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      viewMode === 'team'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Users className="h-3 w-3" />
+                    Team
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -304,7 +401,7 @@ export default function DashboardPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center px-6 py-16">
+            <div className="flex flex-col items-center justify-center px-6 py-10">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50">
                 <FileText className="h-8 w-8 text-indigo-400" />
               </div>
@@ -332,12 +429,12 @@ export default function DashboardPage() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase tracking-wider text-gray-500">
-                    <th className="px-6 py-3">Date</th>
-                    <th className="px-6 py-3">Contract Snippet</th>
-                    <th className="px-6 py-3">Score</th>
-                    <th className="px-6 py-3">Rate Impact</th>
-                    <th className="px-6 py-3">Recommendation</th>
-                    <th className="px-6 py-3">Actions</th>
+                    <th className="hidden sm:table-cell px-3 py-2.5 sm:px-6 sm:py-3">Date</th>
+                    <th className="px-3 py-2.5 sm:px-6 sm:py-3">Contract Snippet</th>
+                    <th className="px-3 py-2.5 sm:px-6 sm:py-3">Score</th>
+                    <th className="hidden sm:table-cell px-3 py-2.5 sm:px-6 sm:py-3">Rate Impact</th>
+                    <th className="px-3 py-2.5 sm:px-6 sm:py-3">Recommendation</th>
+                    <th className="px-3 py-2.5 sm:px-6 sm:py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -349,28 +446,28 @@ export default function DashboardPage() {
                         key={entry.id}
                         className={`border-b border-gray-200 transition-colors hover:bg-indigo-50/30 ${idx % 2 === 0 ? 'bg-white' : 'bg-white'}`}
                       >
-                        <td className="whitespace-nowrap px-6 py-4 text-gray-500">
+                        <td className="hidden sm:table-cell whitespace-nowrap px-3 py-2.5 sm:px-6 sm:py-4 text-gray-500">
                           {formatDate(entry.date)}
                         </td>
-                        <td className="max-w-[240px] truncate px-6 py-4 font-medium text-gray-900">
+                        <td className="max-w-[240px] truncate px-3 py-2.5 sm:px-6 sm:py-4 font-medium text-gray-900">
                           {entry.contractSnippet}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-2.5 sm:px-6 sm:py-4">
                           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${sb.bg} ${sb.text} ${sb.border}`}>
                             {entry.overallScore} &middot; {sb.label}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-gray-500">
+                        <td className="hidden sm:table-cell px-3 py-2.5 sm:px-6 sm:py-4 text-gray-500">
                           <span className={entry.rateReduction > 0 ? 'text-red-600' : 'text-emerald-600'}>
                             {entry.rateReduction > 0 ? '-' : ''}{entry.rateReduction}%
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-2.5 sm:px-6 sm:py-4">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${rb.bg} ${rb.text}`}>
                             {rb.label}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-2.5 sm:px-6 sm:py-4">
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => {
@@ -415,123 +512,6 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* ---- Bottom Row ---- */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {/* Score Distribution */}
-          <motion.div
-            custom={5}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
-          >
-            <div className="mb-6 flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Score Distribution</h2>
-            </div>
-
-            {stats.total === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                No data yet. Analyze a contract to see distribution.
-              </p>
-            ) : (
-              <div className="flex items-end gap-3">
-                {['0-20', '21-40', '41-60', '61-80', '81-100'].map((label, i) => {
-                  const colors = [
-                    'bg-red-400',
-                    'bg-orange-400',
-                    'bg-amber-400',
-                    'bg-emerald-400',
-                    'bg-indigo-500',
-                  ];
-                  const height = distribution[i] > 0 ? Math.max((distribution[i] / maxBucket) * 140, 16) : 8;
-                  return (
-                    <div key={label} className="flex flex-1 flex-col items-center gap-2">
-                      <span className="text-xs font-semibold text-gray-900">
-                        {distribution[i]}
-                      </span>
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height }}
-                        transition={{ duration: 0.6, delay: i * 0.1, ease: 'easeOut' }}
-                        className={`w-full rounded-t-lg ${colors[i]}`}
-                      />
-                      <span className="text-[10px] font-medium text-gray-500">{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-
-          {/* Quick Actions */}
-          <motion.div
-            custom={6}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
-          >
-            <h2 className="mb-6 text-lg font-semibold text-gray-900">Quick Actions</h2>
-            <div className="flex flex-col gap-3">
-              <Link
-                href="/analyze"
-                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100">
-                  <FileText className="h-5 w-5 text-indigo-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Analyze New Contract</p>
-                  <p className="text-xs text-gray-500">Paste or upload a contract to analyze</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-
-              <Link
-                href="/templates"
-                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-                  <FileDown className="h-5 w-5 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">View Templates</p>
-                  <p className="text-xs text-gray-500">Browse freelancer-friendly contract templates</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-
-              <Link
-                href="/chat"
-                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
-                  <MessageSquare className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">AI Contract Chat</p>
-                  <p className="text-xs text-gray-500">Ask questions about your contracts</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-
-              <Link
-                href="/settings"
-                className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-all hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
-                  <Settings className="h-5 w-5 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Settings</p>
-                  <p className="text-xs text-gray-500">Configure your preferences and API keys</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-            </div>
-          </motion.div>
-        </div>
       </main>
 
       <ConfirmModal

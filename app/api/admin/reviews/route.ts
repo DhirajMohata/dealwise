@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("reviews")
-    .select("*")
+    .select("id, user_name, user_email, rating, review_text, is_approved, is_featured, created_at")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: "Failed to fetch reviews" }, { status: 500 });

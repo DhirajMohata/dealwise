@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "analyze": "Analysieren",
+    "dashboard": "Dashboard",
+    "chat": "Chat",
+    "compare": "Vergleichen",
+    "pricing": "Preise",
+    "admin": "Admin",
+    "signIn": "Anmelden",
+    "signOut": "Abmelden",
+    "analyzeFree": "Kostenlos analysieren",
+    "settings": "Einstellungen",
+    "credits": "Credits",
+    "unlimited": "Unbegrenzt",
+    "blog": "Blog"
+  },
+  "landing": {
+    "badge": "KI-gestützte Vertragsanalyse",
+    "heroTitle": "Kennen Sie Ihren echten Stundensatz, bevor Sie unterschreiben.",
+    "heroSubtitle": "Laden Sie einen beliebigen Freelance-Vertrag hoch. In 30 Sekunden über 30 Warnsignale erkennen, Ihren tatsächlichen effektiven Stundensatz sehen und wissen, ob es sicher ist zu unterschreiben.",
+    "heroCta": "Vertrag analysieren",
+    "heroSecondary": "So funktioniert es",
+    "rateReveal": {
+      "title": "Sehen Sie, wie Ihr Stundensatz verschwindet",
+      "subtitle": "Schalten Sie gängige Vertragsklauseln um und sehen Sie, wie sie Ihren angegebenen Satz reduzieren"
+    },
+    "howItWorks": {
+      "title": "Drei Schritte. Dreißig Sekunden.",
+      "subtitle": "Keine Anmeldung nötig. Keine Kreditkarte. Einfach einfügen oder hochladen.",
+      "step1": "Hochladen oder einfügen",
+      "step1desc": "PDF, DOCX ablegen oder Vertragstext direkt einfügen.",
+      "step2": "KI analysiert alles",
+      "step2desc": "Über 30 Warnsignalmuster, Auswirkungen auf den Satz, fehlende Schutzmaßnahmen.",
+      "step3": "Ihren echten Satz erhalten",
+      "step3desc": "Sehen Sie Ihren tatsächlichen effektiven Stundensatz und Verhandlungstipps."
+    },
+    "features": {
+      "title": "Alles was Sie brauchen um Verträge zu prüfen und Ihren Satz zu schützen",
+      "subtitle": "Dealwise analysiert Verträge gründlicher als jedes andere Tool"
+    },
+    "comparison": {
+      "title": "Warum Dealwise?",
+      "subtitle": "Vergleichen Sie Ihre Optionen",
+      "diy": "Selbstprüfung",
+      "dealwise": "dealwise",
+      "lawyer": "Anwalt beauftragen"
+    },
+    "pricing": {
+      "title": "Einfache, ehrliche Preise",
+      "subtitle": "Starten Sie kostenlos. Upgraden Sie bei Bedarf.",
+      "free": "Kostenlos",
+      "starter": "Starter",
+      "pro": "Pro"
+    },
+    "faq": {
+      "title": "Häufig gestellte Fragen"
+    },
+    "cta": {
+      "title": "Bereit Ihren Vertrag zu prüfen?",
+      "subtitle": "Laden Sie Ihren Vertrag hoch und erhalten Sie eine vollständige Analyse in 30 Sekunden. 5 kostenlose Credits, keine Kreditkarte.",
+      "button": "Vertrag jetzt analysieren"
+    }
+  },
+  "analyze": {
+    "title": "Vertrag analysieren",
+    "subtitle": "Laden Sie ein PDF hoch oder fügen Sie Ihren Vertragstext ein. Wir analysieren alles automatisch.",
+    "pasteHint": "Vertragstext hier einfügen...",
+    "analyzeButton": "Meinen Vertrag analysieren",
+    "uploadOrPaste": "Vertrag hochladen oder einfügen",
+    "results": "Analyseergebnisse",
+    "resultsSubtitle": "Das haben wir in Ihrem Vertrag gefunden.",
+    "overview": "Übersicht",
+    "redFlags": "Warnsignale",
+    "missing": "Fehlend und gut",
+    "aiAnalysis": "KI-Analyse",
+    "annotated": "Kommentiert",
+    "versions": "Versionen",
+    "newAnalysis": "Neue Analyse"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "recentAnalyses": "Neueste Analysen",
+    "noAnalyses": "Noch keine Analysen",
+    "noAnalysesDesc": "Analysieren Sie einen Vertrag, um Ihren Verlauf hier zu sehen.",
+    "analyzeCta": "Vertrag analysieren",
+    "totalAnalyses": "Analysen gesamt",
+    "avgScore": "Durchschnittliche Bewertung",
+    "creditsLeft": "Verbleibende Credits",
+    "bestScore": "Beste Bewertung",
+    "myAnalyses": "Meine Analysen",
+    "team": "Team"
+  },
+  "common": {
+    "score": "Bewertung",
+    "recommendation": "Empfehlung",
+    "sign": "Sicher zu unterschreiben",
+    "negotiate": "Verhandeln",
+    "walkAway": "Ablehnen",
+    "loading": "Wird geladen...",
+    "error": "Fehler",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "export": "Exportieren",
+    "copy": "Kopieren",
+    "share": "Teilen",
+    "close": "Schließen"
+  }
+}

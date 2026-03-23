@@ -258,6 +258,49 @@ export function PageContent({ children, className = "" }: { children: React.Reac
 }
 
 // ============================================================
+// SERIF STYLE — reusable across all pages
+// ============================================================
+export const serifStyle: React.CSSProperties = { fontFamily: "var(--font-serif), Georgia, serif" };
+
+// ============================================================
+// PAGE HEADER — consistent serif heading for all tool pages
+// ============================================================
+interface PageHeaderProps {
+  title: string;
+  description?: string;
+  backHref?: string;
+  backLabel?: string;
+  children?: React.ReactNode;
+  className?: string;
+}
+
+export function PageHeader({ title, description, backHref, backLabel, children, className = "" }: PageHeaderProps) {
+  return (
+    <FadeIn className={className}>
+      <div className="mb-8">
+        {backHref && (
+          <a href={backHref} className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            {backLabel || "Back"}
+          </a>
+        )}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl" style={serifStyle}>
+              {title}
+            </h1>
+            {description && (
+              <p className="mt-2 text-base text-gray-500">{description}</p>
+            )}
+          </div>
+          {children}
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
+
+// ============================================================
 // EMPTY STATE
 // ============================================================
 interface EmptyStateProps {

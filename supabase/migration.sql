@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Credits table
 CREATE TABLE IF NOT EXISTS credits (
   email TEXT PRIMARY KEY,
-  credits INTEGER DEFAULT 50,
+  credits INTEGER DEFAULT 5,
   total_used INTEGER DEFAULT 0,
   plan TEXT DEFAULT 'free' CHECK(plan IN ('free', 'pro', 'admin')),
   created_at TIMESTAMPTZ DEFAULT NOW(),

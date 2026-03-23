@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   Upload,
   FileText,
   X,
@@ -220,27 +218,19 @@ export default function BulkPage() {
 
   return (
     <ProtectedRoute>
-    <div className="min-h-screen bg-white">
+    <div className="min-h-dvh bg-white">
       <Nav />
 
-      <div className="mx-auto max-w-5xl px-4 pb-24 pt-24 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Home
-        </Link>
-
+      <div className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">Bulk Analysis</h1>
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>Bulk Analysis</h1>
           <p className="mt-2 max-w-2xl text-gray-400">
             Upload multiple contracts at once. We will analyze each one and show you results in a summary table.
           </p>
         </div>
 
         {/* File Upload */}
-        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-md sm:p-8">
           <h2 className="mb-4 text-sm font-semibold text-gray-900">Upload Contracts</h2>
 
           <div
@@ -314,7 +304,7 @@ export default function BulkPage() {
         </div>
 
         {/* Shared Deal Details */}
-        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-md sm:p-8">
           <h2 className="mb-1 text-sm font-semibold text-gray-900">Shared Deal Details</h2>
           <p className="mb-6 text-xs text-gray-400">Applied to all contracts for consistent comparison.</p>
 
@@ -442,7 +432,7 @@ export default function BulkPage() {
 
         {/* Results Table */}
         {hasResults && (
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-md">
             <div className="border-b border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900">Results</h2>
             </div>

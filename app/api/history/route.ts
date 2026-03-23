@@ -2,11 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { supabase } from "@/lib/supabase";
 
-// GET: list user's analysis history
-export async function GET() {
+// GET: list user's analysis history (or team analyses if teamId is provided)
+export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const teamId = request.nextUrl.searchParams.get('teamId');
+
+  if (teamId) {
+    // Verify user is a member of this team
+    const { data: membership } = await supabase
+      .from('team_members')
+      .select('role')
+      .eq('team_id', teamId)
+      .eq('email', session.user.email)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json({ error: "Not a member of this team" }, { status: 403 });
+    }
+
+    // Get analyses shared with this team
+    const { data: analyses, error } = await supabase
+      .from('analyses')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(analyses);
   }
 
   const { data: analyses, error } = await supabase
@@ -44,6 +74,7 @@ export async function POST(request: NextRequest) {
     currency: body.currency || "USD",
     contract_type: body.contractType || "unknown",
     full_result: body.fullResult || "{}",
+    contract_hash: body.contractHash || null,
   });
 
   if (error) {

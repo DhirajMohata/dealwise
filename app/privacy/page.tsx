@@ -124,6 +124,16 @@ export default function PrivacyPage() {
               profiling. You can configure your browser to refuse cookies, but doing so may prevent you from
               using authenticated features of the service.
             </p>
+            <p className="mt-3">
+              For more details, see our{' '}
+              <a
+                href="/cookies"
+                className="text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:decoration-gray-900"
+              >
+                Cookie Policy
+              </a>
+              .
+            </p>
           </section>
 
           {/* Section 5 */}

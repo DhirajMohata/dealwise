@@ -2,40 +2,25 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, User, Settings, LayoutDashboard, MessageSquare, FileText, Search, GitCompareArrows, Code2, Layers, Shield, GitBranch, DollarSign } from 'lucide-react';
+import { Menu, X, LogOut, Settings, LayoutDashboard, MessageSquare, Search, GitCompareArrows, Shield, BookOpen } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
-interface CreditInfo {
-  credits: number;
-  plan: 'free' | 'pro' | 'admin';
-}
+import { useCredits } from '@/components/CreditsProvider';
 
 export default function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session, status } = useSession();
   const pathname = usePathname();
-  const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
+  const { credits, plan, loading: creditsLoading } = useCredits();
+  const t = useTranslations('nav');
 
   const isLoading = status === 'loading';
   const user = session?.user;
   const isLoggedIn = !!user;
-
-  // Fetch credits when user is logged in
-  useEffect(() => {
-    if (isLoggedIn) {
-      fetch('/api/credits')
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data) setCreditInfo({ credits: data.credits, plan: data.plan });
-        })
-        .catch(() => {});
-    } else {
-      setCreditInfo(null);
-    }
-  }, [isLoggedIn]);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
@@ -49,57 +34,65 @@ export default function Nav() {
       isActive(href) ? 'text-gray-900' : 'text-gray-500 hover:text-gray-900'
     }`;
 
-  const isUserAdmin = creditInfo?.plan === 'admin';
+  const isUserAdmin = plan === 'admin';
+
+  // Dynamic credit badge styling based on remaining credits
+  const creditBadgeClass = credits !== null && plan !== 'admin'
+    ? credits === 0
+      ? 'bg-red-50 text-red-700'
+      : credits <= 2
+      ? 'bg-amber-50 text-amber-700'
+      : 'bg-indigo-50 text-indigo-600'
+    : 'bg-indigo-50 text-indigo-600';
 
   return (
     <nav aria-label="Main navigation" className="sticky top-0 z-50 h-14 border-b border-gray-100 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
         {/* Logo */}
-        <Link href={isLoggedIn ? '/dashboard' : '/'} className="flex items-center">
-          <span className="text-base font-semibold tracking-tight text-gray-900">
-            dealwise
+        <Link href={isLoggedIn ? '/dashboard' : '/'} className="flex items-center gap-1.5">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-indigo-600 flex-shrink-0">
+            <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="currentColor" opacity="0.12"/>
+            <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="text-[17px] font-semibold tracking-tight" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
+            deal<span className="text-indigo-600">wise</span>
           </span>
         </Link>
 
         {/* Center nav links (desktop) */}
         <div className="hidden items-center gap-6 md:flex">
           <Link href="/analyze" className={linkClass('/analyze')}>
-            Analyze
+            {t('analyze')}
           </Link>
 
           {isLoggedIn ? (
             <>
               <Link href="/dashboard" className={linkClass('/dashboard')}>
-                Dashboard
+                {t('dashboard')}
               </Link>
               <Link href="/chat" className={linkClass('/chat')}>
-                Chat
-              </Link>
-              <Link href="/templates" className={linkClass('/templates')}>
-                Templates
+                {t('chat')}
               </Link>
               <Link href="/compare" className={linkClass('/compare')}>
-                Compare
-              </Link>
-              <Link href="/versions" className={linkClass('/versions')}>
-                Versions
-              </Link>
-              <Link href="/pricing" className={linkClass('/pricing')}>
-                Pricing
+                {t('compare')}
               </Link>
               {isUserAdmin && (
                 <Link href="/admin" className={linkClass('/admin')}>
-                  Admin
+                  {t('admin')}
                 </Link>
               )}
             </>
           ) : (
             <>
+              <Link href="/blog" className={linkClass('/blog')}>
+                {t('blog')}
+              </Link>
               <Link
                 href="/#pricing"
                 className="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900"
               >
-                Pricing
+                {t('pricing')}
               </Link>
             </>
           )}
@@ -107,15 +100,35 @@ export default function Nav() {
 
         {/* Right side (desktop) */}
         <div className="hidden items-center gap-3 sm:flex">
+
           {!isLoading && (
             <>
               {user ? (
                 <div className="flex items-center gap-2.5">
                   {/* Credits badge */}
-                  {creditInfo && (
-                    <span className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-medium">
-                      {creditInfo.plan === 'admin' ? 'Unlimited' : creditInfo.credits} credits
-                    </span>
+                  {credits !== null && (
+                    credits !== null && credits <= 2 && plan !== 'admin' ? (
+                      <Link
+                        href="/pricing"
+                        className={`text-[11px] ${creditBadgeClass} px-2 py-0.5 rounded-md font-medium hover:opacity-80 transition-opacity`}
+                      >
+                        {credits} {t('credits')}
+                      </Link>
+                    ) : (
+                      <span className={`text-[11px] ${creditBadgeClass} px-2 py-0.5 rounded-md font-medium`}>
+                        {plan === 'admin' ? t('unlimited') : credits} {t('credits')}
+                      </span>
+                    )
+                  )}
+
+                  {/* Go Pro button */}
+                  {isLoggedIn && plan === 'free' && !isUserAdmin && (
+                    <Link
+                      href="/pricing"
+                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-indigo-700"
+                    >
+                      Go Pro
+                    </Link>
                   )}
 
                   {/* Admin link */}
@@ -148,7 +161,7 @@ export default function Nav() {
                     className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
                   >
                     <LogOut className="h-3.5 w-3.5" />
-                    Sign Out
+                    {t('signOut')}
                   </button>
 
                   {/* User avatar */}
@@ -176,13 +189,13 @@ export default function Nav() {
                     href="/auth/signin"
                     className="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900"
                   >
-                    Sign In
+                    {t('signIn')}
                   </Link>
                   <Link
                     href="/analyze"
                     className="rounded-lg bg-gray-900 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-gray-800"
                   >
-                    Analyze Free
+                    {t('analyzeFree')}
                   </Link>
                 </div>
               )}
@@ -222,7 +235,7 @@ export default function Nav() {
                 onClick={() => setMobileOpen(false)}
               >
                 <Search className="h-4 w-4" />
-                Analyze
+                {t('analyze')}
               </Link>
 
               {isLoggedIn ? (
@@ -233,7 +246,7 @@ export default function Nav() {
                     onClick={() => setMobileOpen(false)}
                   >
                     <LayoutDashboard className="h-4 w-4" />
-                    Dashboard
+                    {t('dashboard')}
                   </Link>
                   <Link
                     href="/chat"
@@ -241,15 +254,7 @@ export default function Nav() {
                     onClick={() => setMobileOpen(false)}
                   >
                     <MessageSquare className="h-4 w-4" />
-                    Chat
-                  </Link>
-                  <Link
-                    href="/templates"
-                    className={mobileLinkClass('/templates')}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <FileText className="h-4 w-4" />
-                    Templates
+                    {t('chat')}
                   </Link>
                   <Link
                     href="/compare"
@@ -257,31 +262,7 @@ export default function Nav() {
                     onClick={() => setMobileOpen(false)}
                   >
                     <GitCompareArrows className="h-4 w-4" />
-                    Compare
-                  </Link>
-                  <Link
-                    href="/bulk"
-                    className={mobileLinkClass('/bulk')}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <Layers className="h-4 w-4" />
-                    Bulk
-                  </Link>
-                  <Link
-                    href="/versions"
-                    className={mobileLinkClass('/versions')}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <GitBranch className="h-4 w-4" />
-                    Versions
-                  </Link>
-                  <Link
-                    href="/pricing"
-                    className={mobileLinkClass('/pricing')}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <DollarSign className="h-4 w-4" />
-                    Pricing
+                    {t('compare')}
                   </Link>
 
                   {isUserAdmin && (
@@ -291,7 +272,7 @@ export default function Nav() {
                       onClick={() => setMobileOpen(false)}
                     >
                       <Shield className="h-4 w-4" />
-                      Admin
+                      {t('admin')}
                     </Link>
                   )}
 
@@ -303,17 +284,27 @@ export default function Nav() {
                     onClick={() => setMobileOpen(false)}
                   >
                     <Settings className="h-4 w-4" />
-                    Settings
+                    {t('settings')}
                   </Link>
                 </>
               ) : (
-                <Link
-                  href="/#pricing"
-                  className="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 py-1"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  Pricing
-                </Link>
+                <>
+                  <Link
+                    href="/blog"
+                    className={mobileLinkClass('/blog')}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    {t('blog')}
+                  </Link>
+                  <Link
+                    href="/#pricing"
+                    className="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 py-1"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {t('pricing')}
+                  </Link>
+                </>
               )}
 
               {!isLoading && (
@@ -341,12 +332,31 @@ export default function Nav() {
                           <p className="truncate text-[13px] font-medium text-gray-900">{user.name}</p>
                           <p className="truncate text-[11px] text-gray-400">{user.email}</p>
                         </div>
-                        {creditInfo && (
-                          <span className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-medium">
-                            {creditInfo.plan === 'admin' ? 'Unlimited' : creditInfo.credits}
-                          </span>
+                        {credits !== null && (
+                          credits !== null && credits <= 2 && plan !== 'admin' ? (
+                            <Link
+                              href="/pricing"
+                              className={`text-[11px] ${creditBadgeClass} px-2 py-0.5 rounded-md font-medium hover:opacity-80 transition-opacity`}
+                              onClick={() => setMobileOpen(false)}
+                            >
+                              {credits}
+                            </Link>
+                          ) : (
+                            <span className={`text-[11px] ${creditBadgeClass} px-2 py-0.5 rounded-md font-medium`}>
+                              {plan === 'admin' ? t('unlimited') : credits}
+                            </span>
+                          )
                         )}
                       </div>
+                      {isLoggedIn && plan === 'free' && !isUserAdmin && (
+                        <Link
+                          href="/pricing"
+                          onClick={() => setMobileOpen(false)}
+                          className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-center text-[13px] font-semibold text-white"
+                        >
+                          Go Pro
+                        </Link>
+                      )}
                       <button
                         onClick={() => {
                           signOut();
@@ -355,7 +365,7 @@ export default function Nav() {
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
                       >
                         <LogOut className="h-4 w-4" />
-                        Sign Out
+                        {t('signOut')}
                       </button>
                     </>
                   ) : (
@@ -366,14 +376,14 @@ export default function Nav() {
                         onClick={() => setMobileOpen(false)}
                         className="flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
                       >
-                        Sign In
+                        {t('signIn')}
                       </Link>
                       <Link
                         href="/analyze"
                         onClick={() => setMobileOpen(false)}
                         className="block w-full rounded-lg bg-gray-900 px-4 py-2 text-center text-[13px] font-medium text-white transition-colors hover:bg-gray-800"
                       >
-                        Analyze Free
+                        {t('analyzeFree')}
                       </Link>
                     </>
                   )}

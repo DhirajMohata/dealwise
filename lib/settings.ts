@@ -4,6 +4,8 @@ export interface Settings {
   savedApiKey: string;
   showAiInsights: boolean;
   showCountryContext: boolean;
+  webhookUrl?: string;
+  slackWebhookUrl?: string;
 }
 
 const DEFAULTS: Settings = {
@@ -12,6 +14,8 @@ const DEFAULTS: Settings = {
   savedApiKey: '',
   showAiInsights: true,
   showCountryContext: true,
+  webhookUrl: '',
+  slackWebhookUrl: '',
 };
 
 export function getSettings(): Settings {

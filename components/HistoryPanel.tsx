@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSession } from 'next-auth/react';
 import {
   History,
   ChevronLeft,
@@ -32,12 +33,15 @@ function getScoreColor(score: number) {
 }
 
 export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
+  const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
 
+  const email = session?.user?.email ?? undefined;
+
   const refreshHistory = useCallback(() => {
-    setEntries(getHistory());
-  }, []);
+    setEntries(getHistory(email));
+  }, [email]);
 
   useEffect(() => {
     refreshHistory();
@@ -50,7 +54,7 @@ export default function HistoryPanel({ onSelectResult }: HistoryPanelProps) {
 
   function handleClear() {
     if (!window.confirm('Are you sure? This will delete all your analysis history.')) return;
-    clearHistory();
+    clearHistory(email);
     setEntries([]);
   }
 

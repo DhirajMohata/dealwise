@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { Inter, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
+import { CreditsProvider } from "@/components/CreditsProvider";
 import ReportIssue from "@/components/ReportIssue";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -19,7 +22,7 @@ const dmSerif = DM_Serif_Display({
 export const metadata: Metadata = {
   title: "dealwise — Know Your Real Rate Before You Sign",
   description:
-    "Paste your freelance contract and instantly discover your ACTUAL effective hourly rate. dealwise analyzes contract terms like unlimited revisions, delayed payments, scope creep language, and missing kill fees so you never undercharge again.",
+    "Upload any freelance contract. In 30 seconds, see your real effective hourly rate after hidden clauses. Detect 30+ red flags. Free AI-powered analysis.",
   keywords: [
     "freelance contract analyzer",
     "effective hourly rate calculator",
@@ -49,18 +52,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" className={`${inter.className} ${dmSerif.variable}`}>
+    <html lang={locale} className={`${inter.className} ${dmSerif.variable}`}>
       <body className="bg-white text-gray-900">
-        <AuthProvider>
-            {children}
-            <ReportIssue />
-        </AuthProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <AuthProvider>
+            <CreditsProvider>
+              {children}
+              <ReportIssue />
+            </CreditsProvider>
+          </AuthProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

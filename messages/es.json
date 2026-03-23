@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "analyze": "Analizar",
+    "dashboard": "Panel",
+    "chat": "Chat",
+    "compare": "Comparar",
+    "pricing": "Precios",
+    "admin": "Admin",
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "analyzeFree": "Analizar gratis",
+    "settings": "Configuración",
+    "credits": "créditos",
+    "unlimited": "Ilimitado",
+    "blog": "Blog"
+  },
+  "landing": {
+    "badge": "Análisis de contratos con IA",
+    "heroTitle": "Conoce tu tarifa real antes de firmar.",
+    "heroSubtitle": "Sube cualquier contrato freelance. En 30 segundos, detecta más de 30 señales de alerta, ve tu tarifa efectiva real por hora y sabe si es seguro firmar.",
+    "heroCta": "Analiza tu contrato",
+    "heroSecondary": "Mira cómo funciona",
+    "rateReveal": {
+      "title": "Mira cómo desaparece tu tarifa",
+      "subtitle": "Activa cláusulas comunes del contrato para ver cómo reducen tu tarifa cotizada"
+    },
+    "howItWorks": {
+      "title": "Tres pasos. Treinta segundos.",
+      "subtitle": "Sin registro. Sin tarjeta de crédito. Solo pega o sube.",
+      "step1": "Sube o pega",
+      "step1desc": "Arrastra un PDF, DOCX, o pega el texto del contrato directamente.",
+      "step2": "La IA analiza todo",
+      "step2desc": "Más de 30 patrones de alerta, impacto en tarifa, protecciones faltantes.",
+      "step3": "Obtén tu tarifa real",
+      "step3desc": "Ve tu tarifa efectiva real por hora y consejos de negociación."
+    },
+    "features": {
+      "title": "Todo lo que necesitas para revisar contratos y proteger tu tarifa",
+      "subtitle": "Dealwise analiza contratos más profundamente que cualquier otra herramienta"
+    },
+    "comparison": {
+      "title": "¿Por qué Dealwise?",
+      "subtitle": "Compara tus opciones",
+      "diy": "Revisión propia",
+      "dealwise": "dealwise",
+      "lawyer": "Contratar abogado"
+    },
+    "pricing": {
+      "title": "Precios simples y honestos",
+      "subtitle": "Empieza gratis. Mejora cuando necesites más.",
+      "free": "Gratis",
+      "starter": "Inicial",
+      "pro": "Pro"
+    },
+    "faq": {
+      "title": "Preguntas frecuentes"
+    },
+    "cta": {
+      "title": "¿Listo para revisar tu contrato?",
+      "subtitle": "Sube tu contrato y obtén un análisis completo en 30 segundos. 5 créditos gratis, sin tarjeta de crédito.",
+      "button": "Analiza tu contrato ahora"
+    }
+  },
+  "analyze": {
+    "title": "Analiza tu contrato",
+    "subtitle": "Sube un PDF o pega el texto de tu contrato. Analizaremos todo automáticamente.",
+    "pasteHint": "Pega el texto de tu contrato aquí...",
+    "analyzeButton": "Analizar mi contrato",
+    "uploadOrPaste": "Sube o pega un contrato",
+    "results": "Resultados del análisis",
+    "resultsSubtitle": "Esto es lo que encontramos en tu contrato.",
+    "overview": "Resumen",
+    "redFlags": "Alertas rojas",
+    "missing": "Faltante y bueno",
+    "aiAnalysis": "Análisis IA",
+    "annotated": "Anotado",
+    "versions": "Versiones",
+    "newAnalysis": "Nuevo análisis"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "recentAnalyses": "Análisis recientes",
+    "noAnalyses": "Sin análisis aún",
+    "noAnalysesDesc": "Analiza un contrato para ver tu historial aquí.",
+    "analyzeCta": "Analizar un contrato",
+    "totalAnalyses": "Total de análisis",
+    "avgScore": "Puntuación promedio",
+    "creditsLeft": "Créditos restantes",
+    "bestScore": "Mejor puntuación",
+    "myAnalyses": "Mis análisis",
+    "team": "Equipo"
+  },
+  "common": {
+    "score": "Puntuación",
+    "recommendation": "Recomendación",
+    "sign": "Seguro para firmar",
+    "negotiate": "Negociar",
+    "walkAway": "Rechazar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "export": "Exportar",
+    "copy": "Copiar",
+    "share": "Compartir",
+    "close": "Cerrar"
+  }
+}

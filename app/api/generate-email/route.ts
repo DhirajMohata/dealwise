@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { checkRateLimit } from "@/lib/security";
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  if (!checkRateLimit(ip, 30, 3600000)) {
+    return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
+  }
+
   const session = await auth();
   const body = await request.json();
   const { redFlags, missingClauses, clientName, contractorName, contractType } = body;

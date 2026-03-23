@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { checkRateLimit } from "@/lib/security";
 
 export async function GET() {
   return NextResponse.json(
@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
       apiKey?: string;
     };
 
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    if (!checkRateLimit(ip, 20, 60000)) {
+      return NextResponse.json({ error: "Too many messages. Try again in a minute." }, { status: 429 });
+    }
+
     if (!message || typeof message !== "string" || !message.trim()) {
       return NextResponse.json(
         { error: "Message is required." },
@@ -31,20 +36,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Credit check ---
+    // --- Auth check (chat is free, no credit deduction) ---
     const session = await auth();
-    let creditsRemaining: number | undefined;
-
-    if (session?.user?.email) {
-      const creditResult = await deductCredits(session.user.email, CREDIT_COSTS.chat);
-      if (!creditResult.success) {
-        return NextResponse.json(
-          { error: creditResult.error || "Not enough credits.", creditsRemaining: creditResult.remaining },
-          { status: 402 }
-        );
-      }
-      creditsRemaining = creditResult.remaining;
-    }
+    const creditsRemaining: number | undefined = undefined;
 
     // Determine AI provider — user-provided key takes priority
     let openaiKey = process.env.OPENAI_API_KEY;

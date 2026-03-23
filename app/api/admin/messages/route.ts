@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("contact_messages")
-    .select("*")
+    .select("id, name, email, subject, message, status, created_at")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 });

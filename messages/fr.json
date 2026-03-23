@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "analyze": "Analyser",
+    "dashboard": "Tableau de bord",
+    "chat": "Chat",
+    "compare": "Comparer",
+    "pricing": "Tarifs",
+    "admin": "Admin",
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "analyzeFree": "Analyser gratuitement",
+    "settings": "Paramètres",
+    "credits": "crédits",
+    "unlimited": "Illimité",
+    "blog": "Blog"
+  },
+  "landing": {
+    "badge": "Analyse de contrats par IA",
+    "heroTitle": "Connaissez votre vrai tarif avant de signer.",
+    "heroSubtitle": "Téléchargez n'importe quel contrat freelance. En 30 secondes, détectez plus de 30 signaux d'alerte, voyez votre taux horaire effectif réel et sachez s'il est sûr de signer.",
+    "heroCta": "Analysez votre contrat",
+    "heroSecondary": "Voir comment ça marche",
+    "rateReveal": {
+      "title": "Regardez votre tarif disparaître",
+      "subtitle": "Activez les clauses courantes du contrat pour voir comment elles réduisent votre tarif"
+    },
+    "howItWorks": {
+      "title": "Trois étapes. Trente secondes.",
+      "subtitle": "Pas d'inscription. Pas de carte de crédit. Collez ou téléchargez simplement.",
+      "step1": "Téléchargez ou collez",
+      "step1desc": "Déposez un PDF, DOCX, ou collez le texte du contrat directement.",
+      "step2": "L'IA analyse tout",
+      "step2desc": "Plus de 30 signaux d'alerte, impact sur le tarif, protections manquantes.",
+      "step3": "Obtenez votre vrai tarif",
+      "step3desc": "Voyez votre taux horaire effectif réel et des conseils de négociation."
+    },
+    "features": {
+      "title": "Tout ce dont vous avez besoin pour examiner les contrats et protéger votre tarif",
+      "subtitle": "Dealwise analyse les contrats plus en profondeur que tout autre outil"
+    },
+    "comparison": {
+      "title": "Pourquoi Dealwise ?",
+      "subtitle": "Comparez vos options",
+      "diy": "Révision personnelle",
+      "dealwise": "dealwise",
+      "lawyer": "Engager un avocat"
+    },
+    "pricing": {
+      "title": "Tarification simple et honnête",
+      "subtitle": "Commencez gratuitement. Passez à la version supérieure quand vous en avez besoin.",
+      "free": "Gratuit",
+      "starter": "Débutant",
+      "pro": "Pro"
+    },
+    "faq": {
+      "title": "Questions fréquemment posées"
+    },
+    "cta": {
+      "title": "Prêt à examiner votre contrat ?",
+      "subtitle": "Téléchargez votre contrat et obtenez une analyse complète en 30 secondes. 5 crédits gratuits, pas de carte de crédit.",
+      "button": "Analysez votre contrat maintenant"
+    }
+  },
+  "analyze": {
+    "title": "Analysez votre contrat",
+    "subtitle": "Téléchargez un PDF ou collez le texte de votre contrat. Nous analyserons tout automatiquement.",
+    "pasteHint": "Collez le texte de votre contrat ici...",
+    "analyzeButton": "Analyser mon contrat",
+    "uploadOrPaste": "Téléchargez ou collez un contrat",
+    "results": "Résultats de l'analyse",
+    "resultsSubtitle": "Voici ce que nous avons trouvé dans votre contrat.",
+    "overview": "Aperçu",
+    "redFlags": "Signaux d'alerte",
+    "missing": "Manquant et bon",
+    "aiAnalysis": "Analyse IA",
+    "annotated": "Annoté",
+    "versions": "Versions",
+    "newAnalysis": "Nouvelle analyse"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "recentAnalyses": "Analyses récentes",
+    "noAnalyses": "Pas encore d'analyses",
+    "noAnalysesDesc": "Analysez un contrat pour voir votre historique ici.",
+    "analyzeCta": "Analyser un contrat",
+    "totalAnalyses": "Total des analyses",
+    "avgScore": "Score moyen",
+    "creditsLeft": "Crédits restants",
+    "bestScore": "Meilleur score",
+    "myAnalyses": "Mes analyses",
+    "team": "Équipe"
+  },
+  "common": {
+    "score": "Score",
+    "recommendation": "Recommandation",
+    "sign": "Sûr à signer",
+    "negotiate": "Négocier",
+    "walkAway": "Refuser",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "export": "Exporter",
+    "copy": "Copier",
+    "share": "Partager",
+    "close": "Fermer"
+  }
+}

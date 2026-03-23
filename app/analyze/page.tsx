@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   AlertTriangle,
   ShieldCheck,
   ShieldAlert,
   FileWarning,
   TrendingDown,
+  TrendingUp,
+  Minus,
+  GitBranch,
   Copy,
   Check,
   Loader2,
@@ -36,12 +37,16 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import Nav from '@/components/Nav';
+import { useCredits } from '@/components/CreditsProvider';
 import HistoryPanel from '@/components/HistoryPanel';
 import ReviewPrompt from '@/components/ReviewPrompt';
 import OnboardingBanner from '@/components/OnboardingBanner';
 import ErrorFallback from '@/components/ErrorFallback';
-import { addHistoryEntry } from '@/lib/auth';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import UpgradeModal from '@/components/UpgradeModal';
+import { addHistoryEntry, getHistory, contractHash } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import type { AnalysisResult } from '@/lib/analyzer';
 import { simpleMarkdownToHtml } from '@/lib/markdown';
@@ -313,8 +318,9 @@ function ScoreCircle({ score }: { score: number }) {
 /* ------------------------------------------------------------------ */
 
 export default function AnalyzePage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const { refreshCredits } = useCredits();
 
   /* ---------- form state ---------- */
   const [contractText, setContractText] = useState('');
@@ -355,8 +361,15 @@ export default function AnalyzePage() {
   /* ---------- auto-detected metadata from PDF ---------- */
   const [autoDetected, setAutoDetected] = useState<ContractMetadata | null>(null);
 
+  /* ---------- version history ---------- */
+  const [versions, setVersions] = useState<Array<{id: string; score: number; rec: string; date: string}>>([]);
+
   /* ---------- tabbed results ---------- */
   const [activeTab, setActiveTab] = useState<string>('overview');
+
+  /* ---------- upgrade modal state ---------- */
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [dismissedNudge, setDismissedNudge] = useState(false);
 
   /* ---------- killer feature states ---------- */
   const [negotiationEmail, setNegotiationEmail] = useState('');
@@ -386,6 +399,10 @@ export default function AnalyzePage() {
       try {
         const parsed = JSON.parse(viewResult);
         setResult(parsed);
+        // Restore contractText if it was stored in the fullResult
+        if (parsed.contractText) {
+          setContractText(parsed.contractText);
+        }
         localStorage.removeItem('dealwise_view_result');
         setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       } catch { /* ignore */ }
@@ -401,6 +418,8 @@ export default function AnalyzePage() {
     // Load defaults from settings
     const settings = getSettings();
     if (settings.defaultCurrency) setCurrency(settings.defaultCurrency);
+
+    // Version history loaded separately in its own useEffect (depends on result)
   }, []);
 
   /* ---------- elapsed time counter for loading ---------- */
@@ -426,6 +445,38 @@ export default function AnalyzePage() {
         .catch(() => {});
     }
   }, [status]);
+
+  /* ---------- Load versions for the CURRENT contract ---------- */
+  useEffect(() => {
+    if (!result) { setVersions([]); return; }
+    try {
+      const history = getHistory(session?.user?.email ?? undefined);
+      // Get current contract text (from state or from stored result)
+      const currentText = contractText || (result as unknown as Record<string, unknown>).contractText as string || '';
+      if (!currentText) { setVersions([]); return; }
+
+      const currentHash = contractHash(currentText);
+
+      // Match by hash (primary) or snippet (backward compat for old entries without hash)
+      const currentSnippet = currentText.slice(0, 40).replace(/\s+/g, ' ').trim().toLowerCase();
+      const filtered = history.filter((h) => {
+        // Primary: match by hash
+        if (h.contractHash && h.contractHash === currentHash) return true;
+        // Fallback: match by snippet for old entries without hash
+        if (!h.contractHash) {
+          const hSnippet = (h.contractSnippet || '').slice(0, 40).replace(/\s+/g, ' ').trim().toLowerCase();
+          if (currentSnippet && hSnippet && currentSnippet === hSnippet) return true;
+        }
+        return false;
+      });
+      setVersions(filtered.map((h) => ({
+        id: h.id,
+        score: h.overallScore,
+        rec: h.recommendation,
+        date: h.date,
+      })));
+    } catch { setVersions([]); }
+  }, [result, contractText]);
 
   /* ---------- keyboard shortcut: Cmd/Ctrl + Enter to submit (FIX 5) ---------- */
   useEffect(() => {
@@ -505,17 +556,25 @@ Both parties agree to maintain confidentiality of proprietary information shared
     setElapsedSeconds(0);
 
     try {
+      const currentSettings = getSettings();
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contractText: text,
           currency,
+          webhookUrl: currentSettings.webhookUrl || undefined,
+          slackWebhookUrl: currentSettings.slackWebhookUrl || undefined,
         }),
       });
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
+        if (res.status === 402) {
+          setShowUpgradeModal(true);
+          setUserCredits(body?.creditsRemaining ?? 0);
+          throw new Error(body?.error ?? 'No credits remaining.');
+        }
         throw new Error(body?.error ?? `Request failed (${res.status})`);
       }
 
@@ -525,6 +584,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
         setUserCredits(data.creditsRemaining);
       }
       setResult(data as AnalysisResult);
+      refreshCredits();
 
       // After analysis, prompt signup if not logged in
       if (status === "unauthenticated") {
@@ -541,9 +601,12 @@ Both parties agree to maintain confidentiality of proprietary information shared
       setMissingClauseFilter('all');
       setActiveTab('overview');
 
+      // Generate a single ID for both localStorage and server saves
+      const analysisId = crypto.randomUUID();
+
       // Save to history (localStorage)
       addHistoryEntry({
-        id: crypto.randomUUID(),
+        id: analysisId,
         date: new Date().toISOString(),
         overallScore: data.overallScore,
         recommendation: data.recommendation,
@@ -553,15 +616,16 @@ Both parties agree to maintain confidentiality of proprietary information shared
         nominalHourlyRate: data.nominalHourlyRate,
         effectiveHourlyRate: data.effectiveHourlyRate,
         rateReduction: data.rateReduction,
-        fullResult: JSON.stringify(data),
-      });
+        fullResult: JSON.stringify({ ...data, contractText: text }),
+        contractHash: contractHash(text),
+      }, session?.user?.email ?? undefined);
 
       // Save to server if authenticated
       fetch('/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: crypto.randomUUID(),
+          id: analysisId,
           contractSnippet: text.slice(0, 200),
           overallScore: data.overallScore,
           recommendation: data.recommendation,
@@ -571,6 +635,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
           currency,
           contractType: data.contractType,
           fullResult: JSON.stringify({ ...data, contractText: text }),
+          contractHash: contractHash(text),
         }),
       }).catch(() => {}); // Don't block on server save failure
 
@@ -811,28 +876,27 @@ Both parties agree to maintain confidentiality of proprietary information shared
   /* ---------- load from history ---------- */
   function handleLoadFromHistory(historicalResult: AnalysisResult) {
     setResult(historicalResult);
-    // Try to set currency from the result if available
-    if ((historicalResult as unknown as Record<string, unknown>).currency) {
-      setCurrency((historicalResult as unknown as Record<string, unknown>).currency as string);
+    // Restore contractText if stored in result
+    const resultAny = historicalResult as unknown as Record<string, unknown>;
+    if (resultAny.contractText) {
+      setContractText(resultAny.contractText as string);
+    }
+    if (resultAny.currency) {
+      setCurrency(resultAny.currency as string);
     }
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <ProtectedRoute>
+    <div className={`bg-white ${result ? 'h-dvh overflow-hidden flex flex-col' : 'min-h-screen'}`}>
       <Nav />
       <HistoryPanel onSelectResult={handleLoadFromHistory} />
+      <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
-      <div className="mx-auto max-w-5xl px-4 pb-24 pt-24 sm:px-6 lg:px-8">
-        {/* Back link */}
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Home
-        </Link>
-
+      {/* Input form: constrained width */}
+      {!result && (
+      <div className="mx-auto max-w-5xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
         <AnimatePresence mode="wait">
           {/* ====================================================== */}
           {/*  STATE 1 — ZERO-FORM INPUT                               */}
@@ -847,7 +911,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
             >
               {/* Page header */}
               <div className="mb-10">
-                <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
+                <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
                   Analyze Your Contract
                 </h1>
                 <p className="mt-2 max-w-2xl text-gray-400">
@@ -860,7 +924,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
 
               <div className="space-y-8">
                 {/* ---- Upload Zone ---- */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md sm:p-8">
                   {/* Upload error */}
                   {uploadError && (
                     <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
@@ -982,10 +1046,24 @@ Both parties agree to maintain confidentiality of proprietary information shared
                         Balance: <span className="font-medium text-gray-900">{userCredits}</span>
                       </span>
                     </div>
-                    {userCredits < 5 && (
+                    {userCredits === 0 && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                        <AlertTriangle className="h-3 w-3" />
+                        No credits remaining.{' '}
+                        <Link href="/pricing" className="underline font-medium hover:text-red-700">Upgrade to keep analyzing &rarr;</Link>
+                      </p>
+                    )}
+                    {userCredits >= 1 && userCredits <= 2 && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
                         <AlertTriangle className="h-3 w-3" />
-                        Low credits remaining. Contact admin for more credits.
+                        Running low!{' '}
+                        <Link href="/pricing" className="underline font-medium hover:text-amber-700">Upgrade to Freelancer &rarr;</Link>
+                      </p>
+                    )}
+                    {userCredits >= 3 && userCredits <= 4 && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                        <AlertTriangle className="h-3 w-3" />
+                        Running low on credits.
                       </p>
                     )}
                   </div>
@@ -1042,875 +1120,1028 @@ Both parties agree to maintain confidentiality of proprietary information shared
               </div>
             </motion.div>
           )}
+        </AnimatePresence>
+      </div>
+      )}
 
-          {/* ====================================================== */}
-          {/*  STATE 2 — RESULTS DASHBOARD (TABBED)                   */}
-          {/* ====================================================== */}
-          {result && (
-            <motion.div
-              key="results"
-              ref={resultsRef}
-              variants={stagger}
-              initial="hidden"
-              animate="show"
-              className="space-y-8"
-            >
-              {/* Page header */}
-              <motion.div variants={fadeUp}>
-                <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">Analysis Results</h1>
-                <p className="mt-2 text-gray-400">
-                  Here&apos;s what we found in your contract.
-                </p>
-              </motion.div>
-
-              {/* Result summary headline */}
-              <motion.div variants={fadeUp} className="mb-6 text-center">
-                <p className="text-lg font-semibold text-gray-900">
-                  Your contract scored <span className={getScoreColor(result.overallScore).text}>{result.overallScore}/100</span>
-                  {' — '}
-                  we found <span className="text-red-600">{result.redFlags.length} red flag{result.redFlags.length !== 1 ? 's' : ''}</span>
-                  {result.missingClauses.length > 0 && <>{' '}and <span className="text-orange-600">{result.missingClauses.length} missing clause{result.missingClauses.length !== 1 ? 's' : ''}</span></>}
-                </p>
-              </motion.div>
-
-              {/* Detected Information */}
-              {result && (result.contractType || result.detectedPrice || result.detectedRate || result.nominalHourlyRate > 0) && (
-                <motion.div variants={fadeUp}>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mb-2">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Detected from your contract</p>
-                    <div className="flex flex-wrap gap-3 text-xs text-gray-700">
-                      {autoDetected?.detectedParties?.client && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Client: {autoDetected.detectedParties.client}</span>}
-                      {autoDetected?.detectedParties?.contractor && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Contractor: {autoDetected.detectedParties.contractor}</span>}
-                      {result.contractType && result.contractType !== 'unknown' && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Type: {result.contractType}</span>}
-                      {result.nominalHourlyRate > 0 && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Rate: {currencySymbol}{result.nominalHourlyRate.toFixed(2)}/hr</span>}
-                      {result.detectedPrice != null && result.detectedPrice > 0 && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Total: {currencySymbol}{result.detectedPrice.toLocaleString()}</span>}
-                      {autoDetected?.detectedPaymentTerms && <span className="inline-flex items-center gap-1 rounded-md bg-white border border-gray-200 px-2 py-1">Payment: {autoDetected.detectedPaymentTerms}</span>}
+      {/* ====================================================== */}
+      {/*  STATE 2 — RESULTS DASHBOARD (full-width, fixed height) */}
+      {/* ====================================================== */}
+      {result && (
+        <motion.div
+          key="results"
+          ref={resultsRef}
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+          className="flex flex-1 flex-col min-h-0"
+        >
+              {/* ---- TOP BAR: Score + Info + Actions ---- */}
+              <div className="border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between py-3">
+                  {/* Left: Score + Summary */}
+                  <div className="flex items-center gap-4 min-w-0">
+                    {/* Score badge */}
+                    <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl font-bold text-lg ${
+                      result.overallScore >= 65 ? 'bg-emerald-50 text-emerald-700' :
+                      result.overallScore >= 35 ? 'bg-amber-50 text-amber-700' :
+                      'bg-red-50 text-red-700'
+                    }`}>
+                      {result.overallScore}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-base font-semibold text-gray-900 truncate">Analysis Results</h1>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                          result.recommendation === 'sign' ? 'bg-emerald-50 text-emerald-700' :
+                          result.recommendation === 'negotiate' ? 'bg-amber-50 text-amber-700' :
+                          'bg-red-50 text-red-700'
+                        }`}>
+                          {result.recommendation === 'sign' ? 'Safe to Sign' : result.recommendation === 'negotiate' ? 'Negotiate' : 'Walk Away'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">
+                        {result.redFlags.length} red flag{result.redFlags.length !== 1 ? 's' : ''}
+                        {result.missingClauses.length > 0 && ` · ${result.missingClauses.length} missing`}
+                        {result.greenFlags.length > 0 && ` · ${result.greenFlags.length} good`}
+                        {result.contractType && result.contractType !== 'unknown' && ` · ${result.contractType}`}
+                        {result.nominalHourlyRate > 0 && ` · ${currencySymbol}${result.nominalHourlyRate.toFixed(0)}/hr`}
+                      </p>
                     </div>
                   </div>
-                </motion.div>
-              )}
 
-              {/* -------------------------------------------------- */}
-              {/*  TAB BAR                                             */}
-              {/* -------------------------------------------------- */}
-              <motion.div variants={fadeUp}>
-                <div className="bg-white rounded-xl border border-gray-200 p-1 inline-flex gap-1">
-                  {[
-                    { id: 'overview', label: 'Overview', icon: Eye },
-                    { id: 'redflags', label: 'Red Flags', icon: ShieldAlert, count: result.redFlags.length },
-                    { id: 'missing', label: 'Missing & Good', icon: FileWarning, count: result.missingClauses.length },
-                    { id: 'ai', label: 'AI Analysis', icon: Brain },
-                    { id: 'annotated', label: 'Annotated', icon: Highlighter, count: result.redFlags.length },
-                  ].map((tab) => (
+                  {/* Right: Action buttons */}
+                  <div className="flex sm:hidden items-center gap-1">
                     <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition inline-flex items-center gap-2 ${
-                        activeTab === tab.id
-                          ? 'bg-indigo-50 text-indigo-700'
-                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                      }`}
+                      onClick={async () => {
+                        const res = await fetch('/api/generate-email', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ redFlags: result.redFlags, missingClauses: result.missingClauses, contractType: result.contractType }),
+                        });
+                        const data = await res.json();
+                        setNegotiationEmail(data.email);
+                        setShowEmailModal(true);
+                      }}
+                      className="rounded-lg p-2 text-gray-500"
+                      title="Email"
                     >
-                      <tab.icon className="h-4 w-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                      {tab.count !== undefined && tab.count > 0 && (
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                          activeTab === tab.id ? 'bg-indigo-200 text-indigo-800' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {tab.count}
-                        </span>
-                      )}
+                      <Mail className="h-4 w-4" />
                     </button>
-                  ))}
-                </div>
-              </motion.div>
-
-              {/* -------------------------------------------------- */}
-              {/*  TAB CONTENT                                         */}
-              {/* -------------------------------------------------- */}
-              <AnimatePresence mode="wait">
-                {/* ============ OVERVIEW TAB ============ */}
-                {activeTab === 'overview' && (
-                  <motion.div
-                    key="tab-overview"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                    className="space-y-8"
-                  >
-                    {/* Score + Rate Comparison + Recommendation */}
-                    <div className="grid gap-6 sm:grid-cols-3">
-                      {/* Score */}
-                      <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                        <ScoreCircle score={result.overallScore} />
-                      </div>
-
-                      {/* Rate Comparison */}
-                      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Rate Comparison</h3>
-
-                        {/* Quoted */}
-                        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                          <p className="text-xs text-gray-400">Your Quoted Rate</p>
-                          <p className="text-xl font-bold text-gray-900">
-                            {currencySymbol}{result.nominalHourlyRate.toFixed(2)}
-                            <span className="text-sm font-normal text-gray-400">/hr</span>
-                          </p>
-                        </div>
-
-                        {/* Real */}
-                        <div
-                          className={`rounded-xl border px-4 py-3 ${
-                            result.effectiveHourlyRate < result.nominalHourlyRate
-                              ? 'border-red-200 bg-red-50'
-                              : 'border-emerald-200 bg-emerald-50'
-                          }`}
-                        >
-                          <p
-                            className={`text-xs ${
-                              result.effectiveHourlyRate < result.nominalHourlyRate
-                                ? 'text-red-500'
-                                : 'text-emerald-500'
-                            }`}
-                          >
-                            Your REAL Rate
-                          </p>
-                          <p
-                            className={`text-xl font-bold ${
-                              result.effectiveHourlyRate < result.nominalHourlyRate
-                                ? 'text-red-600'
-                                : 'text-emerald-600'
-                            }`}
-                          >
-                            {currencySymbol}{result.effectiveHourlyRate.toFixed(2)}
-                            <span className="text-sm font-normal opacity-60">/hr</span>
-                          </p>
-                        </div>
-
-                        {result.rateReduction > 0 && (
-                          <p className="text-center">
-                            <span className="inline-block rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-700">
-                              You&apos;re losing {result.rateReduction.toFixed(1)}% to contract terms
-                            </span>
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Recommendation Badge */}
-                      {(() => {
-                        const config = getRecommendationConfig(result.recommendation);
-                        const RecIcon = getRecommendationIcon(result.recommendation);
-                        return (
-                          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recommendation</h3>
-                            <div
-                              className={`flex items-center gap-3 rounded-xl border px-6 py-4 ${config.bg} ${config.border}`}
-                            >
-                              <RecIcon className={`h-7 w-7 ${config.text}`} />
-                              <span className={`text-2xl font-extrabold ${config.text}`}>{config.label}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Contextual Score Message */}
-                    <div className={`rounded-xl border px-5 py-4 text-sm font-medium ${
-                      result.overallScore >= 70
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : result.overallScore >= 40
-                        ? 'border-amber-200 bg-amber-50 text-amber-800'
-                        : 'border-red-200 bg-red-50 text-red-800'
-                    }`}>
-                      {result.overallScore >= 70
-                        ? 'This contract looks solid. Review the minor issues below.'
-                        : result.overallScore >= 40
-                        ? 'This contract needs negotiation. Use the counter-proposals below.'
-                        : 'This contract is risky. We strongly recommend not signing without major changes.'}
-                    </div>
-
-                    {/* Summary */}
-                    <div>
-                      <SectionHeader icon={Info} title="Analysis Summary" color="text-indigo-600" />
-                      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                        <p className="text-sm leading-relaxed text-gray-600">{result.summary}</p>
-                      </div>
-                    </div>
-
-                    {/* Walk Away Calculator */}
-                    {result.rateReduction > 10 && result.nominalHourlyRate > 0 && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-                        <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2">
-                          <Calculator className="h-4 w-4" />
-                          The Real Cost of This Deal
-                        </h3>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-lg bg-white p-3 border border-amber-100">
-                            <p className="text-[10px] uppercase tracking-wider text-amber-600 font-medium">What You Expect</p>
-                            <p className="mt-1 text-xl font-bold text-gray-900">
-                              {currencySymbol}{(result.nominalHourlyRate * 80).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500">{currencySymbol}{result.nominalHourlyRate}/hr x 80 hrs</p>
-                          </div>
-                          <div className="rounded-lg bg-white p-3 border border-red-100">
-                            <p className="text-[10px] uppercase tracking-wider text-red-600 font-medium">What You&apos;ll Actually Earn</p>
-                            <p className="mt-1 text-xl font-bold text-red-600">
-                              {currencySymbol}{(result.effectiveHourlyRate * 80).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500">{currencySymbol}{result.effectiveHourlyRate.toFixed(2)}/hr x 80 hrs</p>
-                          </div>
-                          <div className="rounded-lg bg-white p-3 border border-gray-200">
-                            <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">Money Left on Table</p>
-                            <p className="mt-1 text-xl font-bold text-gray-900">
-                              {currencySymbol}{((result.nominalHourlyRate - result.effectiveHourlyRate) * 80).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500">{result.rateReduction.toFixed(0)}% lost to contract terms</p>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-xs text-amber-700">
-                          Negotiate the red flags above to close this gap. Use the &quot;Generate Negotiation Email&quot; button to get a ready-to-send message.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* "What If" Scenario Simulator */}
-                    {result.nominalHourlyRate > 0 && (
-                      <div className="rounded-xl border border-gray-200 bg-white p-5">
-                        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                          <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
-                          &quot;What If&quot; Scenario Simulator
-                        </h3>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="text-xs text-gray-500">Extra revision rounds</label>
-                            <input type="range" min="0" max="10" value={simRevisions} onChange={e => setSimRevisions(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
-                            <span className="text-xs text-gray-700">{simRevisions} extra rounds</span>
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-500">Payment delay (days late)</label>
-                            <input type="range" min="0" max="90" step="15" value={simPayDelay} onChange={e => setSimPayDelay(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
-                            <span className="text-xs text-gray-700">{simPayDelay} days late</span>
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-500">Scope creep (extra hours)</label>
-                            <input type="range" min="0" max="100" step="5" value={simScopeCreep} onChange={e => setSimScopeCreep(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
-                            <span className="text-xs text-gray-700">+{simScopeCreep} hours</span>
-                          </div>
-                          <div className="flex flex-col justify-end">
-                            <p className="text-xs text-gray-500 mb-1">Simulated effective rate:</p>
-                            <p className="text-2xl font-bold" style={{ color: simEffectiveRate < result.nominalHourlyRate * 0.5 ? '#DC2626' : simEffectiveRate < result.nominalHourlyRate * 0.75 ? '#D97706' : '#059669' }}>
-                              {currencySymbol}{simEffectiveRate.toFixed(2)}/hr
-                            </p>
-                            <p className="text-xs text-gray-400">vs {currencySymbol}{result.nominalHourlyRate}/hr quoted</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* ============ RED FLAGS TAB ============ */}
-                {activeTab === 'redflags' && (
-                  <motion.div
-                    key="tab-redflags"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                    className="space-y-6"
-                  >
-                    {result.redFlags.length > 0 ? (() => {
-                      const severityCounts = {
-                        all: result.redFlags.length,
-                        critical: result.redFlags.filter((f) => f.severity === 'critical').length,
-                        high: result.redFlags.filter((f) => f.severity === 'high').length,
-                        medium: result.redFlags.filter((f) => f.severity === 'medium').length,
-                        low: result.redFlags.filter((f) => f.severity === 'low').length,
-                      };
-                      const filteredRedFlags = redFlagFilter === 'all'
-                        ? result.redFlags
-                        : result.redFlags.filter((f) => f.severity === redFlagFilter);
-
-                      return (
-                        <>
-                          <SectionHeader icon={ShieldAlert} title="Red Flags Found" count={result.redFlags.length} color="text-red-600" />
-
-                          {/* Filter bar */}
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Filter className="h-4 w-4 text-gray-400" />
-                            {(['all', 'critical', 'high', 'medium', 'low'] as const).map((sev) => {
-                              const count = severityCounts[sev];
-                              if (sev !== 'all' && count === 0) return null;
-                              const isActive = redFlagFilter === sev;
-                              return (
-                                <button
-                                  key={sev}
-                                  type="button"
-                                  onClick={() => setRedFlagFilter(sev)}
-                                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
-                                    isActive
-                                      ? sev === 'all'
-                                        ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
-                                        : sev === 'critical'
-                                        ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                                        : sev === 'high'
-                                        ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
-                                        : sev === 'medium'
-                                        ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                                        : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {sev === 'all' ? 'All' : sev}
-                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                    isActive ? 'bg-black/10' : 'bg-gray-100'
-                                  }`}>
-                                    {count}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <div className="space-y-4">
-                            <AnimatePresence mode="popLayout">
-                              {filteredRedFlags.map((flag, i) => {
-                                const sev = getSeverityStyle(flag.severity);
-                                const leftBorder = getSeverityLeftBorder(flag.severity);
-                                return (
-                                  <motion.div
-                                    key={`${flag.severity}-${flag.clause}-${i}`}
-                                    initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                                    layout
-                                    className={`rounded-xl border border-gray-200 border-l-4 ${leftBorder} bg-white p-5 shadow-sm`}
-                                  >
-                                    {/* Top row: severity + rate impact */}
-                                    <div className="mb-4 flex flex-wrap items-center gap-3">
-                                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${sev.bg} ${sev.text} ${sev.border}`}>
-                                        {flag.severity}
-                                      </span>
-                                      {flag.hourlyRateImpact !== 0 && (
-                                        <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                                          <TrendingDown className="h-3 w-3" />
-                                          {flag.hourlyRateImpact > 0 ? '-' : '+'}
-                                          {currencySymbol}{Math.abs(flag.hourlyRateImpact).toFixed(2)}/hr
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Clause quote */}
-                                    <div className="mb-4 rounded-lg bg-gray-50 p-3">
-                                      <p className="text-sm font-mono text-gray-600 italic">
-                                        &ldquo;{flag.clause}&rdquo;
-                                      </p>
-                                    </div>
-
-                                    {/* Issue & Impact */}
-                                    <div className="mb-4 space-y-2 text-sm">
-                                      <p className="text-gray-600">
-                                        <span className="font-semibold text-gray-900">Issue: </span>
-                                        {flag.issue}
-                                      </p>
-                                      <p className="text-gray-600">
-                                        <span className="font-semibold text-gray-900">Financial Impact: </span>
-                                        {flag.impact}
-                                      </p>
-                                    </div>
-
-                                    {/* Suggestion */}
-                                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                                      <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-emerald-700">Suggested Counter-Proposal</span>
-                                        <CopyButton text={flag.suggestion} label="Copy" />
-                                      </div>
-                                      <p className="text-sm leading-relaxed text-gray-600">{flag.suggestion}</p>
-                                    </div>
-                                  </motion.div>
-                                );
-                              })}
-                            </AnimatePresence>
-                            {filteredRedFlags.length === 0 && (
-                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                                No red flags match this filter.
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      );
-                    })() : (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-8 text-center text-sm text-emerald-700">
-                        No red flags found in this contract. That&apos;s a good sign!
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* ============ MISSING & GOOD TAB ============ */}
-                {activeTab === 'missing' && (
-                  <motion.div
-                    key="tab-missing"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                    className="space-y-10"
-                  >
-                    {/* Missing Clauses */}
-                    {result.missingClauses.length > 0 ? (() => {
-                      const importanceCounts = {
-                        all: result.missingClauses.length,
-                        critical: result.missingClauses.filter((c) => c.importance === 'critical').length,
-                        important: result.missingClauses.filter((c) => c.importance === 'important').length,
-                        nice_to_have: result.missingClauses.filter((c) => c.importance === 'nice_to_have').length,
-                      };
-                      const importanceLabels: Record<string, string> = {
-                        all: 'All',
-                        critical: 'Critical',
-                        important: 'Important',
-                        nice_to_have: 'Nice to Have',
-                      };
-                      const filteredClauses = missingClauseFilter === 'all'
-                        ? result.missingClauses
-                        : result.missingClauses.filter((c) => c.importance === missingClauseFilter);
-
-                      return (
-                        <section>
-                          <SectionHeader icon={FileWarning} title="Missing Protections" count={result.missingClauses.length} color="text-amber-600" />
-
-                          {/* Filter bar */}
-                          <div className="mb-5 flex flex-wrap items-center gap-2">
-                            <Filter className="h-4 w-4 text-gray-400" />
-                            {(['all', 'critical', 'important', 'nice_to_have'] as const).map((imp) => {
-                              const count = importanceCounts[imp];
-                              if (imp !== 'all' && count === 0) return null;
-                              const isActive = missingClauseFilter === imp;
-                              return (
-                                <button
-                                  key={imp}
-                                  type="button"
-                                  onClick={() => setMissingClauseFilter(imp)}
-                                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                                    isActive
-                                      ? imp === 'all'
-                                        ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
-                                        : imp === 'critical'
-                                        ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-                                        : imp === 'important'
-                                        ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
-                                        : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {importanceLabels[imp]}
-                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                    isActive ? 'bg-black/10' : 'bg-gray-100'
-                                  }`}>
-                                    {count}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <div className="space-y-4">
-                            <AnimatePresence mode="popLayout">
-                              {filteredClauses.map((clause, i) => {
-                                const imp = getImportanceStyle(clause.importance);
-                                return (
-                                  <motion.div
-                                    key={`${clause.importance}-${clause.name}-${i}`}
-                                    initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                                    layout
-                                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                                  >
-                                    <div className="mb-3 flex flex-wrap items-center gap-3">
-                                      <h3 className="text-sm font-semibold text-gray-900">{clause.name}</h3>
-                                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${imp.bg} ${imp.text} ${imp.border}`}>
-                                        {clause.importance}
-                                      </span>
-                                    </div>
-                                    <p className="mb-4 text-sm text-gray-600">{clause.description}</p>
-
-                                    {/* Suggested language */}
-                                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-                                      <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-indigo-700">Add This Language</span>
-                                        <CopyButton text={clause.suggestedLanguage} label="Copy" />
-                                      </div>
-                                      <p className="text-sm leading-relaxed text-gray-600">{clause.suggestedLanguage}</p>
-                                    </div>
-                                  </motion.div>
-                                );
-                              })}
-                            </AnimatePresence>
-                            {filteredClauses.length === 0 && (
-                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                                No missing clauses match this filter.
-                              </div>
-                            )}
-                          </div>
-                        </section>
-                      );
-                    })() : (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-8 text-center text-sm text-emerald-700">
-                        No missing protections detected.
-                      </div>
-                    )}
-
-                    {/* Green Flags */}
-                    <section>
-                      <SectionHeader icon={ShieldCheck} title="Green Flags" count={result.greenFlags.length} color="text-emerald-600" />
-
-                      {result.greenFlags.length > 0 ? (
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          {result.greenFlags.map((flag, i) => (
-                            <div
-                              key={i}
-                              className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
-                            >
-                              <p className="mb-2 text-sm font-semibold text-emerald-700">{flag.clause}</p>
-                              <p className="text-sm leading-relaxed text-gray-600">{flag.benefit}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-red-200 bg-red-50 p-6">
-                          <div className="flex items-start gap-3">
-                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                            <p className="text-sm leading-relaxed text-gray-600">
-                              No positive protections found in this contract. This is a red flag in itself — a well-drafted contract should include protections for both parties.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </section>
-                  </motion.div>
-                )}
-
-                {/* ============ AI ANALYSIS TAB ============ */}
-                {activeTab === 'ai' && (
-                  <motion.div
-                    key="tab-ai"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                    className="space-y-8"
-                  >
-                    {/* AI-Enhanced Insights */}
-                    {getSettings().showAiInsights !== false && (
-                      <>
-                        {result.aiInsights ? (
-                          <section>
-                            <SectionHeader icon={Sparkles} title="AI-Powered Deep Analysis" color="text-indigo-600" />
-                            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6">
-                              <div
-                                className="text-sm leading-relaxed text-gray-600 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_em]:italic [&_em]:text-gray-900 [&_ul]:my-2 [&_li]:text-gray-600"
-                                dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(result.aiInsights) }}
-                              />
-                            </div>
-                          </section>
-                        ) : (
-                          <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                            AI insights are available when you provide a Claude API key. Enable it in the analysis form to get deeper contract analysis.
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Country-Specific Legal Context */}
-                    {getSettings().showCountryContext !== false && result.countryContext && (
-                      <section>
-                        <SectionHeader icon={Info} title="Legal Context for Your Country" color="text-blue-600" />
-                        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
-                          <div className="text-sm leading-relaxed text-gray-600 whitespace-pre-line">
-                            {result.countryContext}
-                          </div>
-                        </div>
-                      </section>
-                    )}
-
-                    {/* Scope Risks */}
-                    {result.scopeRisks.length > 0 && (
-                      <section>
-                        <SectionHeader icon={AlertTriangle} title="Scope Creep Risks" count={result.scopeRisks.length} color="text-orange-600" />
-
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          {result.scopeRisks.map((risk, i) => {
-                            const lk = getLikelihoodStyle(risk.likelihood);
-                            return (
-                              <div
-                                key={i}
-                                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                              >
-                                <div className="mb-3 flex items-center gap-2">
-                                  <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${lk.bg} ${lk.text} ${lk.border}`}>
-                                    {risk.likelihood} likelihood
-                                  </span>
-                                </div>
-                                <p className="mb-2 text-sm text-gray-900">{risk.risk}</p>
-                                <p className="text-sm text-gray-400">
-                                  <span className="font-semibold text-gray-600">Potential cost: </span>
-                                  {risk.potentialCost}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* ============ ANNOTATED CONTRACT TAB ============ */}
-                {activeTab === 'annotated' && (
-                  <motion.div
-                    key="tab-annotated"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <div className="rounded-xl border border-gray-200 bg-white p-6">
-                      <p className="mb-4 text-sm text-gray-500">Red flag clauses are highlighted in the original contract text. Hover over highlights to see details.</p>
-                      {contractText ? (
-                        <div className="font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                          {getAnnotatedText(contractText, result.redFlags)}
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
-                          Original contract text is not available. This tab works when you paste or upload a contract directly.
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* -------------------------------------------------- */}
-              {/*  ACTIONS                                             */}
-              {/* -------------------------------------------------- */}
-              <motion.div variants={fadeUp} className="flex flex-wrap gap-4 pt-2">
-                <button
-                  onClick={handleReset}
-                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Analyze Another Contract
-                </button>
-
-                <button
-                  onClick={async () => {
-                    const { exportAnalysisPDF } = await import('@/lib/export-pdf');
-                    await exportAnalysisPDF(result, currencySymbol);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
-                >
-                  <FileDown className="h-4 w-4" />
-                  Export PDF
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (!result) return;
-                    const lines: string[] = [
-                      '========================================',
-                      '  DEALWISE - Contract Analysis Report',
-                      '========================================',
-                      '',
-                      `Date: ${new Date().toLocaleDateString()}`,
-                      '',
-                      '--- DEAL SCORE ---',
-                      `Score: ${result.overallScore}/100`,
-                      `Recommendation: ${result.recommendation.toUpperCase().replace('_', ' ')}`,
-                      '',
-                      '--- RATE COMPARISON ---',
-                      `Quoted Rate: ${currencySymbol}${result.nominalHourlyRate.toFixed(2)}/hr`,
-                      `Effective (Real) Rate: ${currencySymbol}${result.effectiveHourlyRate.toFixed(2)}/hr`,
-                      `Rate Reduction: ${result.rateReduction.toFixed(1)}%`,
-                      '',
-                    ];
-                    if (result.redFlags.length > 0) {
-                      lines.push(`--- RED FLAGS (${result.redFlags.length}) ---`);
-                      result.redFlags.forEach((flag, i) => {
-                        lines.push(`  ${i + 1}. [${flag.severity.toUpperCase()}] ${flag.issue}`);
-                        lines.push(`     Clause: "${flag.clause}"`);
-                        lines.push(`     Impact: ${flag.impact}`);
-                        lines.push(`     Suggestion: ${flag.suggestion}`);
-                        lines.push('');
-                      });
-                    }
-                    if (result.missingClauses.length > 0) {
-                      lines.push(`--- MISSING CLAUSES (${result.missingClauses.length}) ---`);
-                      result.missingClauses.forEach((clause, i) => {
-                        lines.push(`  ${i + 1}. [${clause.importance.toUpperCase()}] ${clause.name}`);
-                        lines.push(`     ${clause.description}`);
-                        lines.push(`     Suggested Language: ${clause.suggestedLanguage}`);
-                        lines.push('');
-                      });
-                    }
-                    if (result.greenFlags.length > 0) {
-                      lines.push(`--- GREEN FLAGS (${result.greenFlags.length}) ---`);
-                      result.greenFlags.forEach((flag, i) => {
-                        lines.push(`  ${i + 1}. ${flag.clause}: ${flag.benefit}`);
-                      });
-                      lines.push('');
-                    }
-                    if (result.aiInsights) {
-                      lines.push('--- AI INSIGHTS ---');
-                      lines.push(result.aiInsights);
-                      lines.push('');
-                    }
-                    lines.push('--- SUMMARY ---');
-                    lines.push(result.summary);
-                    lines.push('');
-                    lines.push('========================================');
-                    lines.push('  Generated by DEALWISE');
-                    lines.push('========================================');
-                    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'dealwise-report.txt';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
-                >
-                  <FileDown className="h-4 w-4" />
-                  Download .txt
-                </button>
-
-                <button
-                  onClick={() => {
-                    import('@/lib/export-docx').then(m => m.exportAnalysisDOCX(result, currencySymbol));
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
-                >
-                  <FileText className="h-4 w-4" />
-                  Export Word
-                </button>
-
-                <button
-                  onClick={handleCopyReport}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
-                >
-                  {reportCopied ? (
-                    <>
-                      <Check className="h-4 w-4 text-emerald-600" />
-                      <span className="text-emerald-600">Report Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" />
-                      Copy Report
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleShare}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
-                >
-                  {shareCopied ? (
-                    <>
-                      <Check className="h-4 w-4 text-emerald-600" />
-                      <span className="text-emerald-600">Link Copied!</span>
-                    </>
-                  ) : (
-                    <>
+                    <button
+                      onClick={async () => { try { const { exportAnalysisPDF } = await import('@/lib/export-pdf'); await exportAnalysisPDF(result, currencySymbol); } catch(e) { console.error('PDF export error:', e); alert('PDF export failed. Please try again.'); } }}
+                      className="rounded-lg p-2 text-gray-500"
+                      title="PDF"
+                    >
+                      <FileDown className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className="rounded-lg p-2 text-gray-500"
+                      title="Share"
+                    >
                       <Share2 className="h-4 w-4" />
-                      Share Link
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => {
-                    // Save current contract + result to localStorage for chat page
-                    localStorage.setItem('dealwise_chat_context', JSON.stringify({
-                      contractText: contractText,
-                      result: result,
-                      date: new Date().toISOString()
-                    }));
-                    router.push('/chat');
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-3 text-sm font-semibold text-indigo-700 transition-all hover:bg-indigo-100 hover:border-indigo-300"
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  Chat About This Contract
-                </button>
-
-                <button
-                  onClick={async () => {
-                    const res = await fetch('/api/generate-email', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        redFlags: result.redFlags,
-                        missingClauses: result.missingClauses,
-                        contractType: result.contractType,
-                      }),
-                    });
-                    const data = await res.json();
-                    setNegotiationEmail(data.email);
-                    setShowEmailModal(true);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-50"
-                >
-                  <Mail className="h-4 w-4" />
-                  Generate Negotiation Email
-                </button>
-
-                <button
-                  onClick={() => setShowBadge(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50"
-                >
-                  <Award className="h-4 w-4" />
-                  Get Score Badge
-                </button>
-              </motion.div>
-
-              {/* Review prompt for authenticated users after analysis */}
-              <div className="mt-6">
-                <ReviewPrompt show={showReview && !!result} onClose={() => setShowReview(false)} />
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={async () => {
+                        const res = await fetch('/api/generate-email', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ redFlags: result.redFlags, missingClauses: result.missingClauses, contractType: result.contractType }),
+                        });
+                        const data = await res.json();
+                        setNegotiationEmail(data.email);
+                        setShowEmailModal(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">Negotiation Email</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('dealwise_chat_context', JSON.stringify({ contractText, result, date: new Date().toISOString() }));
+                        router.push('/chat');
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">Chat</span>
+                    </button>
+                    <div className="h-5 w-px bg-gray-200" />
+                    <button
+                      onClick={async () => { try { const { exportAnalysisPDF } = await import('@/lib/export-pdf'); await exportAnalysisPDF(result, currencySymbol); } catch(e) { console.error('PDF export error:', e); alert('PDF export failed. Please try again.'); } }}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Export PDF"
+                    >
+                      <FileDown className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={handleCopyReport}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Copy Report"
+                    >
+                      {reportCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Share"
+                    >
+                      {shareCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                    </button>
+                    <button onClick={() => setShowBadge(true)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Score Badge">
+                      <Award className="h-4 w-4" />
+                    </button>
+                    <div className="h-5 w-px bg-gray-200" />
+                    <button onClick={handleReset} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors">
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span className="hidden lg:inline">New Analysis</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Signup prompt for unauthenticated users after analysis */}
-              {showSignupPrompt && status === "unauthenticated" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50 p-6 text-center"
-                >
-                  <h3 className="text-lg font-semibold text-gray-900">Save your analysis &amp; unlock all features</h3>
-                  <p className="mt-1 text-sm text-gray-600">Create a free account to save results, access AI chat, templates, and more.</p>
-                  <div className="mt-4 flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/analyze'))}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
-                    >
-                      Create Free Account
-                    </button>
-                    <button
-                      onClick={() => setShowSignupPrompt(false)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 hover:bg-gray-100"
-                    >
-                      Maybe Later
-                    </button>
+              {/* ---- Mobile horizontal tab bar (OUTSIDE the flex row) ---- */}
+              <div className="flex overflow-x-auto border-b border-gray-200 bg-white px-3 md:hidden">
+                {[
+                  { id: 'overview', label: 'Overview', icon: Eye },
+                  { id: 'redflags', label: 'Flags', icon: ShieldAlert, count: result.redFlags.length },
+                  { id: 'missing', label: 'Missing', icon: FileWarning, count: result.missingClauses.length },
+                  { id: 'ai', label: 'AI', icon: Brain },
+                  { id: 'annotated', label: 'Text', icon: Highlighter },
+                  { id: 'versions', label: 'History', icon: GitBranch, count: versions.length },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                      activeTab === tab.id
+                        ? 'border-indigo-600 text-indigo-700'
+                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold text-gray-600">{tab.count}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* ---- MAIN: Left Sidebar Tabs + Right Content ---- */}
+              <div className="flex flex-1 min-h-0">
+                {/* Left sidebar: vertical tabs (desktop only) */}
+                <div className="hidden md:flex w-56 flex-shrink-0 flex-col border-r border-gray-200 bg-gray-50/50">
+                  <div className="flex-1 p-3 space-y-1">
+                    {[
+                      { id: 'overview', label: 'Overview', icon: Eye },
+                      { id: 'redflags', label: 'Red Flags', icon: ShieldAlert, count: result.redFlags.length, color: 'text-red-600' },
+                      { id: 'missing', label: 'Missing & Good', icon: FileWarning, count: result.missingClauses.length, color: 'text-orange-600' },
+                      { id: 'ai', label: 'AI Analysis', icon: Brain },
+                      { id: 'annotated', label: 'Annotated', icon: Highlighter },
+                      { id: 'versions', label: 'Versions', icon: GitBranch, count: versions.length },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                          activeTab === tab.id
+                            ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                            : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
+                        }`}
+                      >
+                        <tab.icon className={`h-4 w-4 flex-shrink-0 ${activeTab === tab.id ? 'text-indigo-600' : ''}`} />
+                        <span className="flex-1 text-left">{tab.label}</span>
+                        {tab.count !== undefined && tab.count > 0 && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            activeTab === tab.id ? 'bg-indigo-100 text-indigo-700' : `bg-gray-100 ${tab.color || 'text-gray-600'}`
+                          }`}>
+                            {tab.count}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                </motion.div>
-              )}
+
+                  {/* Sidebar bottom: detected info */}
+                  {(result.contractType || result.nominalHourlyRate > 0 || autoDetected?.detectedParties?.client) && (
+                    <div className="border-t border-gray-200 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Contract Info</p>
+                      <div className="space-y-1.5 text-xs text-gray-600">
+                        {autoDetected?.detectedParties?.client && <p className="truncate">Client: <span className="text-gray-900">{autoDetected.detectedParties.client}</span></p>}
+                        {autoDetected?.detectedParties?.contractor && <p className="truncate">Contractor: <span className="text-gray-900">{autoDetected.detectedParties.contractor}</span></p>}
+                        {result.contractType && result.contractType !== 'unknown' && <p>Type: <span className="text-gray-900 capitalize">{result.contractType}</span></p>}
+                        {result.nominalHourlyRate > 0 && <p>Rate: <span className="text-gray-900">{currencySymbol}{result.nominalHourlyRate.toFixed(2)}/hr</span></p>}
+                        {result.detectedPrice != null && result.detectedPrice > 0 && <p>Total: <span className="text-gray-900">{currencySymbol}{result.detectedPrice.toLocaleString()}</span></p>}
+                        {autoDetected?.detectedPaymentTerms && <p>Payment: <span className="text-gray-900">{autoDetected.detectedPaymentTerms}</span></p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sidebar bottom: more exports */}
+                  <div className="border-t border-gray-200 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Export</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button onClick={async () => { const { exportAnalysisPDF } = await import('@/lib/export-pdf'); await exportAnalysisPDF(result, currencySymbol); }} className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">PDF</button>
+                      <button onClick={() => { import('@/lib/export-docx').then(m => m.exportAnalysisDOCX(result, currencySymbol)); }} className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">Word</button>
+                      <button onClick={() => {
+                        if (!result) return;
+                        const lines: string[] = ['========================================','  DEALWISE - Contract Analysis Report','========================================','',`Date: ${new Date().toLocaleDateString()}`,'','--- DEAL SCORE ---',`Score: ${result.overallScore}/100`,`Recommendation: ${result.recommendation.toUpperCase().replace('_', ' ')}`,'','--- RATE COMPARISON ---',`Quoted Rate: ${currencySymbol}${result.nominalHourlyRate.toFixed(2)}/hr`,`Effective (Real) Rate: ${currencySymbol}${result.effectiveHourlyRate.toFixed(2)}/hr`,`Rate Reduction: ${result.rateReduction.toFixed(1)}%`,''];
+                        if (result.redFlags.length > 0) { lines.push(`--- RED FLAGS (${result.redFlags.length}) ---`); result.redFlags.forEach((flag, i) => { lines.push(`  ${i + 1}. [${flag.severity.toUpperCase()}] ${flag.issue}`); lines.push(`     Clause: "${flag.clause}"`); lines.push(`     Impact: ${flag.impact}`); lines.push(`     Suggestion: ${flag.suggestion}`); lines.push(''); }); }
+                        if (result.missingClauses.length > 0) { lines.push(`--- MISSING CLAUSES (${result.missingClauses.length}) ---`); result.missingClauses.forEach((clause, i) => { lines.push(`  ${i + 1}. [${clause.importance.toUpperCase()}] ${clause.name}`); lines.push(`     ${clause.description}`); lines.push(`     Suggested Language: ${clause.suggestedLanguage}`); lines.push(''); }); }
+                        if (result.greenFlags.length > 0) { lines.push(`--- GREEN FLAGS (${result.greenFlags.length}) ---`); result.greenFlags.forEach((flag, i) => { lines.push(`  ${i + 1}. ${flag.clause}: ${flag.benefit}`); }); lines.push(''); }
+                        if (result.aiInsights) { lines.push('--- AI INSIGHTS ---'); lines.push(result.aiInsights); lines.push(''); }
+                        lines.push('--- SUMMARY ---'); lines.push(result.summary); lines.push(''); lines.push('========================================'); lines.push('  Generated by DEALWISE'); lines.push('========================================');
+                        const blob = new Blob([lines.join('\n')], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'dealwise-report.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                      }} className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">.txt</button>
+                      <button onClick={handleCopyReport} className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">{reportCopied ? '✓' : 'Copy'}</button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: scrollable content area */}
+                <div className="flex-1 overflow-y-auto pb-16 md:pb-8">
+                  <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-6">
+                  {/* Mobile-only: Contract info + Export (hidden on desktop where sidebar shows these) */}
+                  <div className="mb-4 space-y-3 md:hidden">
+                    {/* Contract info badges */}
+                    {(result.contractType || result.nominalHourlyRate > 0 || autoDetected?.detectedParties?.client) && (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {autoDetected?.detectedParties?.client && <span className="rounded-md bg-gray-100 px-2 py-1 text-gray-600">Client: {autoDetected.detectedParties.client}</span>}
+                        {result.contractType && result.contractType !== 'unknown' && <span className="rounded-md bg-gray-100 px-2 py-1 text-gray-600 capitalize">{result.contractType}</span>}
+                        {result.nominalHourlyRate > 0 && <span className="rounded-md bg-gray-100 px-2 py-1 text-gray-600">{currencySymbol}{result.nominalHourlyRate.toFixed(0)}/hr</span>}
+                        {result.detectedPrice != null && result.detectedPrice > 0 && <span className="rounded-md bg-gray-100 px-2 py-1 text-gray-600">Total: {currencySymbol}{result.detectedPrice.toLocaleString()}</span>}
+                        {autoDetected?.detectedPaymentTerms && <span className="rounded-md bg-gray-100 px-2 py-1 text-gray-600">{autoDetected.detectedPaymentTerms}</span>}
+                      </div>
+                    )}
+                    {/* Export row */}
+                    <div className="flex gap-2">
+                      <button onClick={async () => { try { const { exportAnalysisPDF } = await import('@/lib/export-pdf'); await exportAnalysisPDF(result, currencySymbol); } catch(e) { console.error('PDF export error:', e); alert('PDF export failed. Please try again.'); } }} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600">PDF</button>
+                      <button onClick={() => { import('@/lib/export-docx').then(m => m.exportAnalysisDOCX(result, currencySymbol)); }} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600">Word</button>
+                      <button onClick={handleCopyReport} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600">{reportCopied ? '✓ Copied' : 'Copy'}</button>
+                      <button onClick={handleShare} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600">{shareCopied ? '✓ Shared' : 'Share'}</button>
+                    </div>
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {/* ============ OVERVIEW TAB ============ */}
+                    {activeTab === 'overview' && (
+                      <motion.div
+                        key="tab-overview"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-8"
+                      >
+                        {/* Score + Rate Comparison + Recommendation */}
+                        <div className="grid gap-6 sm:grid-cols-3">
+                          {/* Score */}
+                          <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                            <ScoreCircle score={result.overallScore} />
+                          </div>
+
+                          {/* Rate Comparison */}
+                          <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Rate Comparison</h3>
+
+                            {/* Quoted */}
+                            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                              <p className="text-xs text-gray-400">Your Quoted Rate</p>
+                              <p className="text-xl font-bold text-gray-900">
+                                {currencySymbol}{result.nominalHourlyRate.toFixed(2)}
+                                <span className="text-sm font-normal text-gray-400">/hr</span>
+                              </p>
+                            </div>
+
+                            {/* Real */}
+                            <div
+                              className={`rounded-xl border px-4 py-3 ${
+                                result.effectiveHourlyRate < result.nominalHourlyRate
+                                  ? 'border-red-200 bg-red-50'
+                                  : 'border-emerald-200 bg-emerald-50'
+                              }`}
+                            >
+                              <p
+                                className={`text-xs ${
+                                  result.effectiveHourlyRate < result.nominalHourlyRate
+                                    ? 'text-red-500'
+                                    : 'text-emerald-500'
+                                }`}
+                              >
+                                Your REAL Rate
+                              </p>
+                              <p
+                                className={`text-xl font-bold ${
+                                  result.effectiveHourlyRate < result.nominalHourlyRate
+                                    ? 'text-red-600'
+                                    : 'text-emerald-600'
+                                }`}
+                              >
+                                {currencySymbol}{result.effectiveHourlyRate.toFixed(2)}
+                                <span className="text-sm font-normal opacity-60">/hr</span>
+                              </p>
+                            </div>
+
+                            {result.rateReduction > 0 && (
+                              <p className="text-center">
+                                <span className="inline-block rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-700">
+                                  You&apos;re losing {result.rateReduction.toFixed(1)}% to contract terms
+                                </span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Recommendation Badge */}
+                          {(() => {
+                            const config = getRecommendationConfig(result.recommendation);
+                            const RecIcon = getRecommendationIcon(result.recommendation);
+                            return (
+                              <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recommendation</h3>
+                                <div
+                                  className={`flex items-center gap-3 rounded-xl border px-6 py-4 ${config.bg} ${config.border}`}
+                                >
+                                  <RecIcon className={`h-7 w-7 ${config.text}`} />
+                                  <span className={`text-2xl font-extrabold ${config.text}`}>{config.label}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Contextual Score Message */}
+                        <div className={`rounded-xl border px-5 py-4 text-sm font-medium ${
+                          result.overallScore >= 70
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                            : result.overallScore >= 40
+                            ? 'border-amber-200 bg-amber-50 text-amber-800'
+                            : 'border-red-200 bg-red-50 text-red-800'
+                        }`}>
+                          {result.overallScore >= 70
+                            ? 'This contract looks solid. Review the minor issues below.'
+                            : result.overallScore >= 40
+                            ? 'This contract needs negotiation. Use the counter-proposals below.'
+                            : 'This contract is risky. We strongly recommend not signing without major changes.'}
+                        </div>
+
+                        {/* Summary */}
+                        <div>
+                          <SectionHeader icon={Info} title="Analysis Summary" color="text-indigo-600" />
+                          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                            <p className="text-sm leading-relaxed text-gray-600">{result.summary}</p>
+                          </div>
+                        </div>
+
+                        {/* Walk Away Calculator */}
+                        {result.rateReduction > 10 && result.nominalHourlyRate > 0 && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                            <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                              <Calculator className="h-4 w-4" />
+                              The Real Cost of This Deal
+                            </h3>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                              <div className="rounded-lg bg-white p-3 border border-amber-100">
+                                <p className="text-[10px] uppercase tracking-wider text-amber-600 font-medium">What You Expect</p>
+                                <p className="mt-1 text-xl font-bold text-gray-900">
+                                  {currencySymbol}{(result.nominalHourlyRate * 80).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-gray-500">{currencySymbol}{result.nominalHourlyRate}/hr x 80 hrs</p>
+                              </div>
+                              <div className="rounded-lg bg-white p-3 border border-red-100">
+                                <p className="text-[10px] uppercase tracking-wider text-red-600 font-medium">What You&apos;ll Actually Earn</p>
+                                <p className="mt-1 text-xl font-bold text-red-600">
+                                  {currencySymbol}{(result.effectiveHourlyRate * 80).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-gray-500">{currencySymbol}{result.effectiveHourlyRate.toFixed(2)}/hr x 80 hrs</p>
+                              </div>
+                              <div className="rounded-lg bg-white p-3 border border-gray-200">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">Money Left on Table</p>
+                                <p className="mt-1 text-xl font-bold text-gray-900">
+                                  {currencySymbol}{((result.nominalHourlyRate - result.effectiveHourlyRate) * 80).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-gray-500">{result.rateReduction.toFixed(0)}% lost to contract terms</p>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-xs text-amber-700">
+                              Negotiate the red flags above to close this gap. Use the &quot;Generate Negotiation Email&quot; button to get a ready-to-send message.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* "What If" Scenario Simulator */}
+                        {result.nominalHourlyRate > 0 && (
+                          <div className="rounded-xl border border-gray-200 bg-white p-5">
+                            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+                              <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
+                              &quot;What If&quot; Scenario Simulator
+                            </h3>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div>
+                                <label className="text-xs text-gray-500">Extra revision rounds</label>
+                                <input type="range" min="0" max="10" value={simRevisions} onChange={e => setSimRevisions(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
+                                <span className="text-xs text-gray-700">{simRevisions} extra rounds</span>
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500">Payment delay (days late)</label>
+                                <input type="range" min="0" max="90" step="15" value={simPayDelay} onChange={e => setSimPayDelay(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
+                                <span className="text-xs text-gray-700">{simPayDelay} days late</span>
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500">Scope creep (extra hours)</label>
+                                <input type="range" min="0" max="100" step="5" value={simScopeCreep} onChange={e => setSimScopeCreep(parseInt(e.target.value))} className="w-full mt-1 accent-indigo-600" />
+                                <span className="text-xs text-gray-700">+{simScopeCreep} hours</span>
+                              </div>
+                              <div className="flex flex-col justify-end">
+                                <p className="text-xs text-gray-500 mb-1">Simulated effective rate:</p>
+                                <p className="text-2xl font-bold" style={{ color: simEffectiveRate < result.nominalHourlyRate * 0.5 ? '#DC2626' : simEffectiveRate < result.nominalHourlyRate * 0.75 ? '#D97706' : '#059669' }}>
+                                  {currencySymbol}{simEffectiveRate.toFixed(2)}/hr
+                                </p>
+                                <p className="text-xs text-gray-400">vs {currencySymbol}{result.nominalHourlyRate}/hr quoted</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* ============ RED FLAGS TAB ============ */}
+                    {activeTab === 'redflags' && (
+                      <motion.div
+                        key="tab-redflags"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-6"
+                      >
+                        {result.redFlags.length > 0 ? (() => {
+                          const severityCounts = {
+                            all: result.redFlags.length,
+                            critical: result.redFlags.filter((f) => f.severity === 'critical').length,
+                            high: result.redFlags.filter((f) => f.severity === 'high').length,
+                            medium: result.redFlags.filter((f) => f.severity === 'medium').length,
+                            low: result.redFlags.filter((f) => f.severity === 'low').length,
+                          };
+                          const filteredRedFlags = redFlagFilter === 'all'
+                            ? result.redFlags
+                            : result.redFlags.filter((f) => f.severity === redFlagFilter);
+
+                          return (
+                            <>
+                              <SectionHeader icon={ShieldAlert} title="Red Flags Found" count={result.redFlags.length} color="text-red-600" />
+
+                              {/* Filter bar */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Filter className="h-4 w-4 text-gray-400" />
+                                {(['all', 'critical', 'high', 'medium', 'low'] as const).map((sev) => {
+                                  const count = severityCounts[sev];
+                                  if (sev !== 'all' && count === 0) return null;
+                                  const isActive = redFlagFilter === sev;
+                                  return (
+                                    <button
+                                      key={sev}
+                                      type="button"
+                                      onClick={() => setRedFlagFilter(sev)}
+                                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
+                                        isActive
+                                          ? sev === 'all'
+                                            ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
+                                            : sev === 'critical'
+                                            ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+                                            : sev === 'high'
+                                            ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
+                                            : sev === 'medium'
+                                            ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                                            : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      {sev === 'all' ? 'All' : sev}
+                                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                        isActive ? 'bg-black/10' : 'bg-gray-100'
+                                      }`}>
+                                        {count}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="space-y-4">
+                                <AnimatePresence mode="popLayout">
+                                  {filteredRedFlags.map((flag, i) => {
+                                    const sev = getSeverityStyle(flag.severity);
+                                    const leftBorder = getSeverityLeftBorder(flag.severity);
+                                    return (
+                                      <motion.div
+                                        key={`${flag.severity}-${flag.clause}-${i}`}
+                                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                                        layout
+                                        className={`rounded-xl border border-gray-200 border-l-4 ${leftBorder} bg-white p-5 shadow-sm`}
+                                      >
+                                        {/* Top row: severity + rate impact */}
+                                        <div className="mb-4 flex flex-wrap items-center gap-3">
+                                          <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${sev.bg} ${sev.text} ${sev.border}`}>
+                                            {flag.severity}
+                                          </span>
+                                          {flag.hourlyRateImpact !== 0 && (
+                                            <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                              <TrendingDown className="h-3 w-3" />
+                                              {flag.hourlyRateImpact > 0 ? '-' : '+'}
+                                              {currencySymbol}{Math.abs(flag.hourlyRateImpact).toFixed(2)}/hr
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Clause quote */}
+                                        <div className="mb-4 rounded-lg bg-gray-50 p-3">
+                                          <p className="text-sm font-mono text-gray-600 italic">
+                                            &ldquo;{flag.clause}&rdquo;
+                                          </p>
+                                        </div>
+
+                                        {/* Issue & Impact */}
+                                        <div className="mb-4 space-y-2 text-sm">
+                                          <p className="text-gray-600">
+                                            <span className="font-semibold text-gray-900">Issue: </span>
+                                            {flag.issue}
+                                          </p>
+                                          <p className="text-gray-600">
+                                            <span className="font-semibold text-gray-900">Financial Impact: </span>
+                                            {flag.impact}
+                                          </p>
+                                        </div>
+
+                                        {/* Suggestion */}
+                                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                                          <div className="mb-2 flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-emerald-700">Suggested Counter-Proposal</span>
+                                            <CopyButton text={flag.suggestion} label="Copy" />
+                                          </div>
+                                          <p className="text-sm leading-relaxed text-gray-600">{flag.suggestion}</p>
+                                        </div>
+                                      </motion.div>
+                                    );
+                                  })}
+                                </AnimatePresence>
+                                {filteredRedFlags.length === 0 && (
+                                  <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
+                                    No red flags match this filter.
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })() : (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-8 text-center text-sm text-emerald-700">
+                            No red flags found in this contract. That&apos;s a good sign!
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* ============ MISSING & GOOD TAB ============ */}
+                    {activeTab === 'missing' && (
+                      <motion.div
+                        key="tab-missing"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-10"
+                      >
+                        {/* Missing Clauses */}
+                        {result.missingClauses.length > 0 ? (() => {
+                          const importanceCounts = {
+                            all: result.missingClauses.length,
+                            critical: result.missingClauses.filter((c) => c.importance === 'critical').length,
+                            important: result.missingClauses.filter((c) => c.importance === 'important').length,
+                            nice_to_have: result.missingClauses.filter((c) => c.importance === 'nice_to_have').length,
+                          };
+                          const importanceLabels: Record<string, string> = {
+                            all: 'All',
+                            critical: 'Critical',
+                            important: 'Important',
+                            nice_to_have: 'Nice to Have',
+                          };
+                          const filteredClauses = missingClauseFilter === 'all'
+                            ? result.missingClauses
+                            : result.missingClauses.filter((c) => c.importance === missingClauseFilter);
+
+                          return (
+                            <section>
+                              <SectionHeader icon={FileWarning} title="Missing Protections" count={result.missingClauses.length} color="text-amber-600" />
+
+                              {/* Filter bar */}
+                              <div className="mb-5 flex flex-wrap items-center gap-2">
+                                <Filter className="h-4 w-4 text-gray-400" />
+                                {(['all', 'critical', 'important', 'nice_to_have'] as const).map((imp) => {
+                                  const count = importanceCounts[imp];
+                                  if (imp !== 'all' && count === 0) return null;
+                                  const isActive = missingClauseFilter === imp;
+                                  return (
+                                    <button
+                                      key={imp}
+                                      type="button"
+                                      onClick={() => setMissingClauseFilter(imp)}
+                                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                                        isActive
+                                          ? imp === 'all'
+                                            ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
+                                            : imp === 'critical'
+                                            ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+                                            : imp === 'important'
+                                            ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
+                                            : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      {importanceLabels[imp]}
+                                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                        isActive ? 'bg-black/10' : 'bg-gray-100'
+                                      }`}>
+                                        {count}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="space-y-4">
+                                <AnimatePresence mode="popLayout">
+                                  {filteredClauses.map((clause, i) => {
+                                    const imp = getImportanceStyle(clause.importance);
+                                    return (
+                                      <motion.div
+                                        key={`${clause.importance}-${clause.name}-${i}`}
+                                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                                        layout
+                                        className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+                                      >
+                                        <div className="mb-3 flex flex-wrap items-center gap-3">
+                                          <h3 className="text-sm font-semibold text-gray-900">{clause.name}</h3>
+                                          <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${imp.bg} ${imp.text} ${imp.border}`}>
+                                            {clause.importance}
+                                          </span>
+                                        </div>
+                                        <p className="mb-4 text-sm text-gray-600">{clause.description}</p>
+
+                                        {/* Suggested language */}
+                                        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+                                          <div className="mb-2 flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-indigo-700">Add This Language</span>
+                                            <CopyButton text={clause.suggestedLanguage} label="Copy" />
+                                          </div>
+                                          <p className="text-sm leading-relaxed text-gray-600">{clause.suggestedLanguage}</p>
+                                        </div>
+                                      </motion.div>
+                                    );
+                                  })}
+                                </AnimatePresence>
+                                {filteredClauses.length === 0 && (
+                                  <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
+                                    No missing clauses match this filter.
+                                  </div>
+                                )}
+                              </div>
+                            </section>
+                          );
+                        })() : (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-8 text-center text-sm text-emerald-700">
+                            No missing protections detected.
+                          </div>
+                        )}
+
+                        {/* Green Flags */}
+                        <section>
+                          <SectionHeader icon={ShieldCheck} title="Green Flags" count={result.greenFlags.length} color="text-emerald-600" />
+
+                          {result.greenFlags.length > 0 ? (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              {result.greenFlags.map((flag, i) => (
+                                <div
+                                  key={i}
+                                  className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
+                                >
+                                  <p className="mb-2 text-sm font-semibold text-emerald-700">{flag.clause}</p>
+                                  <p className="text-sm leading-relaxed text-gray-600">{flag.benefit}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+                              <div className="flex items-start gap-3">
+                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                                <p className="text-sm leading-relaxed text-gray-600">
+                                  No positive protections found in this contract. This is a red flag in itself — a well-drafted contract should include protections for both parties.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </section>
+                      </motion.div>
+                    )}
+
+                    {/* ============ AI ANALYSIS TAB ============ */}
+                    {activeTab === 'ai' && (
+                      <motion.div
+                        key="tab-ai"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-8"
+                      >
+                        {/* AI-Enhanced Insights */}
+                        {getSettings().showAiInsights !== false && (
+                          <>
+                            {result.aiInsights ? (
+                              <section>
+                                <SectionHeader icon={Sparkles} title="AI-Powered Deep Analysis" color="text-indigo-600" />
+                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6">
+                                  <div
+                                    className="text-sm leading-relaxed text-gray-600 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_em]:italic [&_em]:text-gray-900 [&_ul]:my-2 [&_li]:text-gray-600"
+                                    dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(result.aiInsights) }}
+                                  />
+                                </div>
+                              </section>
+                            ) : (
+                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
+                                AI insights are available when you provide a Claude API key. Enable it in the analysis form to get deeper contract analysis.
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Country-Specific Legal Context */}
+                        {getSettings().showCountryContext !== false && result.countryContext && (
+                          <section>
+                            <SectionHeader icon={Info} title="Legal Context for Your Country" color="text-blue-600" />
+                            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
+                              <div className="text-sm leading-relaxed text-gray-600 whitespace-pre-line">
+                                {result.countryContext}
+                              </div>
+                            </div>
+                          </section>
+                        )}
+
+                        {/* Scope Risks */}
+                        {result.scopeRisks.length > 0 && (
+                          <section>
+                            <SectionHeader icon={AlertTriangle} title="Scope Creep Risks" count={result.scopeRisks.length} color="text-orange-600" />
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              {result.scopeRisks.map((risk, i) => {
+                                const lk = getLikelihoodStyle(risk.likelihood);
+                                return (
+                                  <div
+                                    key={i}
+                                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+                                  >
+                                    <div className="mb-3 flex items-center gap-2">
+                                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${lk.bg} ${lk.text} ${lk.border}`}>
+                                        {risk.likelihood} likelihood
+                                      </span>
+                                    </div>
+                                    <p className="mb-2 text-sm text-gray-900">{risk.risk}</p>
+                                    <p className="text-sm text-gray-400">
+                                      <span className="font-semibold text-gray-600">Potential cost: </span>
+                                      {risk.potentialCost}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* ============ ANNOTATED CONTRACT TAB ============ */}
+                    {activeTab === 'annotated' && (
+                      <motion.div
+                        key="tab-annotated"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ duration: 0.25 }}
+                      >
+                        <div className="rounded-xl border border-gray-200 bg-white p-6">
+                          <p className="mb-4 text-sm text-gray-500">Red flag clauses are highlighted in the original contract text. Hover over highlights to see details.</p>
+                          {contractText ? (
+                            <div className="font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap break-words">
+                              {getAnnotatedText(contractText, result.redFlags)}
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-400">
+                              Original contract text is not available. This tab works when you paste or upload a contract directly.
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* ============ VERSIONS TAB ============ */}
+                    {activeTab === 'versions' && (
+                      <motion.div
+                        key="tab-versions"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-4"
+                      >
+                        <h2 className="text-lg font-semibold text-gray-900">Version History</h2>
+                        <p className="text-sm text-gray-500">Track how your contract score changes across analyses.</p>
+
+                        {versions.length <= 1 ? (
+                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center">
+                            <GitBranch className="mx-auto mb-3 h-8 w-8 text-gray-300" />
+                            <p className="text-sm text-gray-500">Analyze this contract again after making changes to see version comparisons.</p>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            {/* Timeline line */}
+                            <div className="absolute left-[19px] top-6 bottom-6 w-0.5 bg-gray-200" />
+
+                            <div className="space-y-3">
+                              {versions.map((v, i) => {
+                                const prev = i > 0 ? versions[i - 1] : null;
+                                const diff = prev ? v.score - prev.score : 0;
+                                return (
+                                  <div key={v.id || i} className="flex items-start gap-3">
+                                    <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${
+                                      v.score >= 65 ? 'border-emerald-200 bg-emerald-50' :
+                                      v.score >= 35 ? 'border-amber-200 bg-amber-50' :
+                                      'border-red-200 bg-red-50'
+                                    }`}>
+                                      <span className={`text-xs font-bold ${
+                                        v.score >= 65 ? 'text-emerald-700' :
+                                        v.score >= 35 ? 'text-amber-700' :
+                                        'text-red-700'
+                                      }`}>{v.score}</span>
+                                    </div>
+                                    <div className="flex-1 rounded-lg border border-gray-200 bg-white p-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-gray-900">v{versions.length - i}</span>
+                                          {prev && diff !== 0 && (
+                                            <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                              {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                              {diff > 0 ? '+' : ''}{diff}
+                                            </span>
+                                          )}
+                                          <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                                            v.rec === 'sign' ? 'bg-emerald-50 text-emerald-700' :
+                                            v.rec === 'negotiate' ? 'bg-amber-50 text-amber-700' :
+                                            'bg-red-50 text-red-700'
+                                          }`}>{v.rec.replace('_', ' ')}</span>
+                                        </div>
+                                        <span className="text-[11px] text-gray-400">{new Date(v.date).toLocaleDateString()}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Review prompt for authenticated users after analysis */}
+                  <div className="mt-6">
+                    <ReviewPrompt show={showReview && !!result} onClose={() => setShowReview(false)} />
+                  </div>
+
+                  {/* Signup prompt for unauthenticated users after analysis */}
+                  {showSignupPrompt && status === "unauthenticated" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50 p-6 text-center"
+                    >
+                      <h3 className="text-lg font-semibold text-gray-900">Save your analysis &amp; unlock all features</h3>
+                      <p className="mt-1 text-sm text-gray-600">Create a free account to save results, access AI chat, templates, and more.</p>
+                      <div className="mt-4 flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/analyze'))}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
+                        >
+                          Create Free Account
+                        </button>
+                        <button
+                          onClick={() => setShowSignupPrompt(false)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 hover:bg-gray-100"
+                        >
+                          Maybe Later
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Post-analysis upgrade nudge */}
+                  {result && userCredits !== null && userCredits <= 2 && userPlan !== 'admin' && !dismissedNudge && (
+                    <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-amber-800">
+                          You have <span className="font-semibold">{userCredits}</span> {userCredits === 1 ? 'analysis' : 'analyses'} left.{' '}
+                          <Link href="/pricing" className="underline font-medium text-amber-900 hover:text-amber-700">
+                            Upgrade to Freelancer for 30/month &rarr;
+                          </Link>
+                        </p>
+                        <button
+                          onClick={() => setDismissedNudge(true)}
+                          className="flex-shrink-0 rounded p-1 text-amber-400 hover:bg-amber-100 hover:text-amber-600 transition-colors"
+                          aria-label="Dismiss"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile bottom action bar */}
+              <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-200 bg-white px-4 py-2 md:hidden">
+                <div className="flex items-center justify-around">
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/generate-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          redFlags: result.redFlags,
+                          missingClauses: result.missingClauses,
+                          contractType: result.contractType,
+                        }),
+                      });
+                      const data = await res.json();
+                      setNegotiationEmail(data.email);
+                      setShowEmailModal(true);
+                    }}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-indigo-600 transition-colors"
+                    title="Generate Negotiation Email"
+                  >
+                    <Mail className="h-5 w-5" />
+                    <span className="text-[10px]">Email</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('dealwise_chat_context', JSON.stringify({
+                        contractText: contractText,
+                        result: result,
+                        date: new Date().toISOString()
+                      }));
+                      router.push('/chat');
+                    }}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-indigo-600 transition-colors"
+                    title="Chat About This Contract"
+                  >
+                    <MessageSquare className="h-5 w-5" />
+                    <span className="text-[10px]">Chat</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const { exportAnalysisPDF } = await import('@/lib/export-pdf');
+                      await exportAnalysisPDF(result, currencySymbol);
+                    }}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-indigo-600 transition-colors"
+                    title="Export PDF"
+                  >
+                    <FileDown className="h-5 w-5" />
+                    <span className="text-[10px]">PDF</span>
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-indigo-600 transition-colors"
+                    title="Share Link"
+                  >
+                    <Share2 className="h-5 w-5" />
+                    <span className="text-[10px]">Share</span>
+                  </button>
+                  <button
+                    onClick={() => setShowBadge(true)}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-indigo-600 transition-colors"
+                    title="Get Score Badge"
+                  >
+                    <Award className="h-5 w-5" />
+                    <span className="text-[10px]">Badge</span>
+                  </button>
+                </div>
+              </div>
 
               {/* Negotiation Email Modal */}
               {showEmailModal && negotiationEmail && (
@@ -1966,10 +2197,9 @@ Both parties agree to maintain confidentiality of proprietary information shared
                   </div>
                 </div>
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+        </motion.div>
+      )}
     </div>
+    </ProtectedRoute>
   );
 }

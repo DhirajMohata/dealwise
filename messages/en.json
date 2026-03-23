@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "analyze": "Analyze",
+    "dashboard": "Dashboard",
+    "chat": "Chat",
+    "compare": "Compare",
+    "pricing": "Pricing",
+    "admin": "Admin",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "analyzeFree": "Analyze Free",
+    "settings": "Settings",
+    "credits": "credits",
+    "unlimited": "Unlimited",
+    "blog": "Blog"
+  },
+  "landing": {
+    "badge": "AI-Powered Contract Analysis",
+    "heroTitle": "Know your real rate before you sign.",
+    "heroSubtitle": "Upload any freelance contract. In 30 seconds, catch 30+ red flags, see your real effective hourly rate, and know if it's safe to sign.",
+    "heroCta": "Analyze Your Contract",
+    "heroSecondary": "See how it works",
+    "rateReveal": {
+      "title": "Watch your rate disappear",
+      "subtitle": "Toggle common contract clauses to see how they eat into your quoted rate"
+    },
+    "howItWorks": {
+      "title": "Three steps. Thirty seconds.",
+      "subtitle": "No signup required. No credit card. Just paste or upload.",
+      "step1": "Upload or paste",
+      "step1desc": "Drop a PDF, DOCX, or paste contract text directly.",
+      "step2": "AI analyzes everything",
+      "step2desc": "30+ red flag patterns, rate impact, missing protections.",
+      "step3": "Get your real rate",
+      "step3desc": "See your actual effective hourly rate and negotiation tips."
+    },
+    "features": {
+      "title": "Everything you need to review contracts and protect your rate",
+      "subtitle": "Dealwise analyzes contracts deeper than any other tool"
+    },
+    "comparison": {
+      "title": "Why dealwise?",
+      "subtitle": "Compare your options",
+      "diy": "DIY Review",
+      "dealwise": "dealwise",
+      "lawyer": "Hire a Lawyer"
+    },
+    "pricing": {
+      "title": "Simple, honest pricing",
+      "subtitle": "Start free. Upgrade when you need more.",
+      "free": "Free",
+      "starter": "Starter",
+      "pro": "Pro"
+    },
+    "faq": {
+      "title": "Frequently asked questions"
+    },
+    "cta": {
+      "title": "Ready to review your contract?",
+      "subtitle": "Upload your contract and get a full analysis in 30 seconds. 5 free credits, no credit card.",
+      "button": "Analyze Your Contract Now"
+    }
+  },
+  "analyze": {
+    "title": "Analyze Your Contract",
+    "subtitle": "Upload a PDF or paste your contract text. We'll analyze everything automatically.",
+    "pasteHint": "Paste your contract text here...",
+    "analyzeButton": "Analyze My Contract",
+    "uploadOrPaste": "Upload or paste a contract",
+    "results": "Analysis Results",
+    "resultsSubtitle": "Here's what we found in your contract.",
+    "overview": "Overview",
+    "redFlags": "Red Flags",
+    "missing": "Missing & Good",
+    "aiAnalysis": "AI Analysis",
+    "annotated": "Annotated",
+    "versions": "Versions",
+    "newAnalysis": "New Analysis"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "recentAnalyses": "Recent Analyses",
+    "noAnalyses": "No analyses yet",
+    "noAnalysesDesc": "Analyze a contract to see your history here.",
+    "analyzeCta": "Analyze a Contract",
+    "totalAnalyses": "Total Analyses",
+    "avgScore": "Average Score",
+    "creditsLeft": "Credits Left",
+    "bestScore": "Best Score",
+    "myAnalyses": "My Analyses",
+    "team": "Team"
+  },
+  "common": {
+    "score": "Score",
+    "recommendation": "Recommendation",
+    "sign": "Safe to Sign",
+    "negotiate": "Negotiate",
+    "walkAway": "Walk Away",
+    "loading": "Loading...",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "export": "Export",
+    "copy": "Copy",
+    "share": "Share",
+    "close": "Close"
+  }
+}

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email";
+import { checkRateLimit } from "@/lib/security";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  if (!checkRateLimit(ip, 5, 3600000)) {
+    return NextResponse.json({ success: true }); // Don't reveal rate limiting to prevent enumeration
+  }
+
   const { email, token, newPassword } = await request.json();
 
   // Step 1: Request reset (send email)

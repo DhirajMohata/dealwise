@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, GitBranch, TrendingUp, TrendingDown, Minus, FileText, Clock } from 'lucide-react';
+import { GitBranch, TrendingUp, TrendingDown, Minus, FileText, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Nav from '@/components/Nav';
 import { useSession } from 'next-auth/react';
@@ -93,7 +93,7 @@ export default function VersionsPage() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         <Nav />
         <div className="flex h-[60vh] items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
@@ -103,20 +103,12 @@ export default function VersionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-dvh bg-white">
       <Nav />
 
-      <div className="mx-auto max-w-4xl px-4 pb-24 pt-24 sm:px-6 lg:px-8">
-        <Link
-          href="/dashboard"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-600"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Link>
-
+      <div className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
             Contract Versions
           </h1>
           <p className="mt-2 text-gray-400">
@@ -125,7 +117,7 @@ export default function VersionsPage() {
         </div>
 
         {groups.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
             <GitBranch className="mx-auto mb-4 h-12 w-12 text-gray-400" />
             <h3 className="text-lg font-semibold text-gray-900">No versions yet</h3>
             <p className="mt-2 text-sm text-gray-400">
@@ -146,7 +138,7 @@ export default function VersionsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: gi * 0.1 }}
-                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md"
               >
                 <div className="mb-4 flex items-center gap-3">
                   <FileText className="h-5 w-5 text-indigo-600" />

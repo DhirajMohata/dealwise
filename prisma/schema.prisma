@@ -21,7 +21,7 @@ model User {
 
 model Credit {
   email      String   @id
-  credits    Int      @default(50)
+  credits    Int      @default(5)
   totalUsed  Int      @default(0) @map("total_used")
   plan       String   @default("free")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -66,4 +66,43 @@ model ContractVersion {
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@map("contract_versions")
+}
+
+model Payment {
+  id                String   @id @default(uuid())
+  email             String
+  razorpayOrderId   String   @map("razorpay_order_id")
+  razorpayPaymentId String   @map("razorpay_payment_id")
+  planId            String   @map("plan_id")
+  amount            Int
+  currency          String   @default("USD")
+  creditsAdded      Int      @map("credits_added")
+  status            String
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([razorpayOrderId])
+  @@map("payments")
+}
+
+model BlogPost {
+  id              String    @id @default(uuid())
+  title           String
+  slug            String    @unique
+  content         String
+  excerpt         String?
+  authorEmail     String    @map("author_email")
+  authorName      String    @map("author_name")
+  coverImageUrl   String?   @map("cover_image_url")
+  tags            String[]  @default([])
+  category        String    @default("general")
+  isPublished     Boolean   @default(false) @map("is_published")
+  isFeatured      Boolean   @default(false) @map("is_featured")
+  seoTitle        String?   @map("seo_title")
+  seoDescription  String?   @map("seo_description")
+  publishedAt     DateTime? @map("published_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+  viewCount       Int       @default(0) @map("view_count")
+  @@map("blog_posts")
 }

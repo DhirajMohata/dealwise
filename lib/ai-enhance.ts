@@ -155,9 +155,9 @@ METHODOLOGY:
 5. Quantify financial impact where possible (e.g., "adds ~20% unpaid hours")
 
 SEVERITY DEFINITIONS:
-- critical: Will cause direct financial loss or legal liability. Examples: unlimited revisions with no cap, IP transfer before payment, termination without payment for completed work, unlimited liability
-- high: Creates significant risk that could cost money. Examples: net-60+ payment delay, broad non-compete (>12 months), one-sided indemnification, no kill fee
-- medium: Suboptimal but manageable with awareness. Examples: net-30 payment (standard but not ideal), confidentiality without time limit, vague scope language
+- critical: Will cause direct financial loss or legal liability. Examples: unlimited revisions with no cap, IP transfer before payment, termination without payment for completed work, unlimited liability, work for hire with no payment guarantee
+- high: Creates significant risk that could cost money. Examples: net-60+ payment delay, broad non-compete (>12 months or worldwide), one-sided indemnification, no kill fee, vague/unlimited scope, exclusivity without adequate compensation
+- medium: Suboptimal but manageable with awareness. Examples: net-30 payment (standard but not ideal), confidentiality without time limit, one-sided termination terms
 - low: Minor concern, good to fix but not urgent. Examples: missing governing law, no force majeure clause
 
 CRITICAL RULES — READ CAREFULLY:
@@ -167,28 +167,98 @@ CRITICAL RULES — READ CAREFULLY:
   * "Contractor retains pre-existing IP" is standard and good
   * Reasonable confidentiality (2-5 years) is standard
   * Mutual indemnification is fair and balanced
+  * Reasonable non-solicitation (6-12 months, mutual) is standard — do NOT flag as "non-compete"
+  * In ghostwriting contracts, no author credit is STANDARD practice — do NOT flag ghostwriting-specific norms as red flags
+- A "non-compete" and a "non-solicitation" are DIFFERENT things. Only flag actual non-compete clauses (restrictions on doing similar work for other clients). Non-solicitation (not poaching employees) is standard and acceptable.
 - ONLY report findings you can support with specific text from the contract
 - For each finding, ALWAYS include the exact quote from the contract text
 - Focus on subtle risks that simple keyword matching would miss: implied obligations, ambiguous scope boundaries, hidden cost triggers, jurisdiction-specific issues
 - If the contract is genuinely good and well-drafted, say so — do not invent problems
 
+MUST-DETECT RED FLAGS (always flag these if present):
+- "unlimited revisions" or revisions with no cap → CRITICAL
+- Non-compete clause >6 months or with broad/worldwide scope → HIGH or CRITICAL
+- Scope creep language: "as needed", "from time to time", "as directed", "and other tasks", "including but not limited to" followed by open-ended obligations → HIGH
+- No deposit/advance with 100% on completion → MEDIUM
+- Net-60 or longer payment terms → HIGH
+- Net-90+ → CRITICAL
+- IP transfers before payment or "upon creation" → CRITICAL
+- One-sided termination (client can terminate anytime, contractor cannot) → HIGH
+- Unlimited liability or no liability cap → HIGH
+- Penalty clauses for late delivery → MEDIUM
+- Exclusivity without proportional compensation → HIGH
+- "work for hire" combined with below-market rates → HIGH
+- Employment relationship disguised as contractor → CRITICAL
+- Vague/undefined scope of work → HIGH
+
 EXTRACTION REQUIREMENTS:
 - Extract the contract type (fixed-price, hourly, retainer, milestone, day-rate, per-unit, revenue-share)
 - Extract the total price or hourly rate if mentioned
-- Extract the currency
+- Extract the currency from symbols used in the contract: $ = USD, £ = GBP, € = EUR, ₹ or Rs. = INR, A$ = AUD, C$ = CAD. Default to USD if no currency symbols found.
 - Extract payment terms (Net-30, Net-60, milestone-based, upon completion, etc.)
 - Extract party names (client and contractor)
 - Detect the likely jurisdiction from governing law or party addresses
 - Provide a suggested deal score from 0-100 based on your assessment
 
-SCORING GUIDELINES:
-- 80-100: Excellent contract with strong freelancer protections (deposit, kill fee, capped revisions, IP on payment, mutual indemnification)
-- 60-79: Good contract with minor gaps (missing some protections but no critical red flags)
-- 40-59: Fair contract that needs negotiation (some red flags or missing important clauses)
-- 20-39: Poor contract with significant risks (multiple high-severity flags, missing critical protections)
-- 0-19: Dangerous contract that should not be signed as-is (critical flags like unlimited revisions, no payment protection, one-sided terms)
+SCORING SYSTEM — FOLLOW PRECISELY:
+Evaluate all red flags and green flags, then calculate a final score from 0 to 100. Use the penalty/bonus system below as guidance:
 
-A standard professional contract from a platform like Deel, Toptal, or Upwork should score 50-65 — these are fair but favor the client slightly, which is normal for platform contracts.`;
+PENALTIES (subtract from score):
+- Each CRITICAL red flag: -15 to -25 points
+- Each HIGH red flag: -8 to -12 points
+- Each MEDIUM red flag: -3 to -5 points
+- Each missing critical protection (no payment terms, no IP clause, no termination clause): -10 points
+- Each missing important protection (no liability cap, no dispute resolution): -5 points
+- Vague or undefined scope: -15 points
+- No deposit AND 100% payment on completion: -10 points
+- Unlimited revisions: -20 points
+- Non-compete >12 months or worldwide: -20 points
+
+BONUSES (add to score):
+- Deposit/advance payment: +5 points
+- Kill fee or termination protection: +5 points
+- Capped revisions (2-3 rounds): +3 points
+- IP transfers on payment (not on creation): +5 points
+- Milestone payments: +5 points
+- Mutual indemnification: +5 points
+- Mediation/arbitration clause: +3 points
+- Liability cap: +3 points
+- Portfolio rights retained: +2 points
+- Net-14 or better payment terms: +3 points
+
+SCORE RANGES (final score must fall in appropriate range):
+- 85-100: Excellent — deposit, kill fee, capped revisions, IP on payment, mutual terms, liability cap, dispute resolution. Very few or no concerns.
+- 65-84: Good — most protections present, no critical red flags, maybe 1-2 medium issues.
+- 45-64: Fair/Negotiate — some significant gaps or 1-2 high-severity issues. Needs negotiation before signing.
+- 25-44: Poor — multiple high-severity flags, missing critical protections. Significant rewrite needed.
+- 0-24: Dangerous — critical red flags (unlimited revisions, no payment protection, one-sided terms, exploitative). Walk away or completely rewrite.
+
+CALIBRATION EXAMPLES:
+- A contract with unlimited revisions, no deposit, Net-90, and one-sided termination = 0-10
+- A contract with 2-year worldwide non-compete and IP on creation = 15-25
+- A platform contract (Deel, Toptal, Upwork style) with slightly client-favoring terms = 50-62
+- A contract with vague scope ("as needed", "other tasks as assigned") and no deposit = 35-50
+- A contract with Net-30, no kill fee, but otherwise fair = 55-65
+- A contract with deposit, capped revisions, milestone payments, IP on payment = 80-92
+- A contract with all protections (deposit, kill fee, mutual indemnification, capped revisions, IP on payment, liability cap, mediation) = 88-98
+
+STACKING RULE — THIS IS MANDATORY:
+- A contract with 2+ CRITICAL red flags: score MUST be 0-15. No exceptions.
+- A contract with 3+ CRITICAL red flags: score MUST be 0-10.
+- A contract with 5+ CRITICAL red flags: score MUST be 0-5.
+- A contract with 1 CRITICAL + 2 HIGH red flags: score MUST be below 30.
+- Count every distinct problem separately — do not group them or minimize them.
+- DO NOT give a score of 50 to terrible contracts. A score of 50 means "fair contract with some issues" — if a contract has unlimited revisions, no payment protection, or exploitative terms, it should score BELOW 20.
+
+SCOPE CREEP DETECTION: Look for these patterns that indicate scope creep risk:
+- "including but not limited to" followed by an open-ended list
+- "as needed", "from time to time", "as directed by Client"
+- "other tasks as reasonably requested" or "other duties as assigned"
+- "various other [activities/tasks]" or "any other [work] as needed"
+- General IT support or troubleshooting added to a specific project scope
+These should be flagged as HIGH severity with issue text containing "scope creep".
+
+IMPORTANT: Do NOT default to 75. A score of 75 means "good contract with only minor issues." Most contracts have real issues that should bring them below 65.`;
 
 // ============================================================
 // JSON Schema for Structured Output (100% guaranteed valid JSON)
@@ -313,7 +383,7 @@ async function callOpenAIStructured(
         { role: "user", content: userPrompt },
       ],
       temperature: 0.1,
-      max_tokens: 4096,
+      max_tokens: 6000,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -382,7 +452,7 @@ function transformAIResponse(parsed: Record<string, unknown>): AIAnalysisResult 
   const assessment = (parsed.overallAssessment as string) || "";
   const priorities = (parsed.negotiationPriorities as string[]) || [];
   const quality = (parsed.contractQuality as string) || "";
-  const suggestedScore = Number(parsed.suggestedScore) || 50;
+  const suggestedScore = parsed.suggestedScore != null ? Number(parsed.suggestedScore) : 50;
   const detectedInfoRaw = (parsed.detectedInfo as Record<string, unknown>) || {};
 
   // Build insights from assessment + priorities + quality

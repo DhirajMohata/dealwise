@@ -58,6 +58,10 @@ export async function POST(request: NextRequest) {
 
     // PDF files
     if (file.type === "application/pdf" || fileName.endsWith(".pdf")) {
+      // Verify PDF magic number (%PDF)
+      if (buffer.length < 4 || buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
+        return NextResponse.json({ error: "File is not a valid PDF." }, { status: 400 });
+      }
       try {
         const result = await pdfParse(buffer);
         const text = result.text || "";

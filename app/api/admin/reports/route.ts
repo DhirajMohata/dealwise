@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("issue_reports")
-    .select("*")
+    .select("id, user_email, description, page_url, status, admin_notes, created_at")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 });

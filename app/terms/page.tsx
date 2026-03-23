@@ -308,6 +308,32 @@ export default function TermsPage() {
                 and DEALWISE regarding the Service and supersede all prior agreements and understandings.
               </li>
               <li>
+                <strong className="text-gray-800">Related Policies.</strong>{' '}
+                The following policies are incorporated by reference and form part of your agreement with
+                DEALWISE:{' '}
+                <a
+                  href="/refund"
+                  className="text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:decoration-gray-900"
+                >
+                  Refund Policy
+                </a>
+                ,{' '}
+                <a
+                  href="/cookies"
+                  className="text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:decoration-gray-900"
+                >
+                  Cookie Policy
+                </a>
+                , and{' '}
+                <a
+                  href="/acceptable-use"
+                  className="text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:decoration-gray-900"
+                >
+                  Acceptable Use Policy
+                </a>
+                .
+              </li>
+              <li>
                 <strong className="text-gray-800">Severability.</strong>{' '}
                 If any provision of these Terms is found to be invalid or unenforceable, the remaining
                 provisions will continue in full force and effect.

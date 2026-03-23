@@ -33,7 +33,11 @@ function SignInForm() {
     });
 
     if (result?.error) {
-      setError(result.error === "CredentialsSignin" ? "Invalid email or password" : result.error);
+      setError(result.error === "CredentialsSignin"
+        ? (tab === "signup"
+          ? "Signup failed. Password must have 8+ chars, 1 uppercase, 1 lowercase, 1 number. Or email may already be registered."
+          : "Invalid email or password, or email not yet verified.")
+        : result.error);
       setLoading(false);
     } else {
       router.push(callbackUrl);
@@ -45,11 +49,18 @@ function SignInForm() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-dvh">
       {/* LEFT — Brand panel (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-[45%] flex-col justify-between bg-indigo-600 p-12 text-white">
         <div>
-          <Link href="/" className="text-2xl font-semibold tracking-tight">dealwise</Link>
+          <Link href="/" className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" className="text-white flex-shrink-0">
+              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="currentColor" opacity="0.2"/>
+              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+              <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>dealwise</span>
+          </Link>
         </div>
 
         <div>
@@ -89,7 +100,14 @@ function SignInForm() {
         <div className="w-full max-w-[400px]">
           {/* Mobile logo */}
           <div className="mb-8 lg:hidden">
-            <Link href="/" className="text-xl font-semibold text-gray-900 tracking-tight">dealwise</Link>
+            <Link href="/" className="flex items-center gap-1.5 text-xl font-semibold text-gray-900 tracking-tight">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-indigo-600 flex-shrink-0">
+                <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="currentColor" opacity="0.12"/>
+                <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+                <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>deal<span className="text-indigo-600">wise</span></span>
+            </Link>
           </div>
 
           {/* Tabs */}
@@ -151,6 +169,9 @@ function SignInForm() {
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6}
                   className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-[14px] text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10" />
               </div>
+              {tab === "signup" && (
+                <p className="mt-1 text-xs text-gray-400">Min 8 chars, 1 uppercase, 1 lowercase, 1 number</p>
+              )}
               {tab === "signin" && (
                 <div className="mt-1.5 text-right">
                   <Link href="/auth/reset" className="text-xs text-indigo-600 hover:text-indigo-700">Forgot password?</Link>
@@ -171,7 +192,7 @@ function SignInForm() {
 
           {/* Trust */}
           <div className="mt-6 flex items-center justify-center gap-4 text-[11px] text-gray-400">
-            <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> 50 free credits</span>
+            <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> 5 free credits on signup</span>
             <span>·</span>
             <span>No credit card</span>
           </div>
@@ -183,7 +204,7 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>}>
+    <Suspense fallback={<div className="flex min-h-dvh items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>}>
       <SignInForm />
     </Suspense>
   );

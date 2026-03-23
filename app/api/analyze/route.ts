@@ -6,8 +6,6 @@ import { auth } from "@/auth";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import { getAdminSettings } from "@/lib/admin-settings";
 
-// Track anonymous free analyses by IP (in-memory, resets on restart)
-const anonymousUsage = new Map<string, number>();
 
 export async function GET() {
   return NextResponse.json(
@@ -18,17 +16,20 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Dev-mode test bypass (only works in development)
+    const isTestMode = process.env.NODE_ENV === "development" &&
+      request.headers.get("x-test-key") === "dealwise-test-runner";
+
     // Load admin settings for dynamic limits
     const adminSettings = await getAdminSettings();
-    const ANONYMOUS_FREE_LIMIT = adminSettings.anonymousFreeLimit;
     const MAX_CONTRACT_LENGTH = adminSettings.maxContractLength;
 
-    // Rate limiting
+    // Rate limiting (skip in test mode)
     const ip =
       request.headers.get("x-forwarded-for") ||
       request.headers.get("x-real-ip") ||
       "unknown";
-    if (!checkRateLimit(ip)) {
+    if (!isTestMode && !checkRateLimit(ip)) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Try again in a minute." },
         { status: 429 }
@@ -98,17 +99,14 @@ export async function POST(request: NextRequest) {
         );
       }
       creditsRemaining = creditResult.remaining;
+    } else if (isTestMode) {
+      // Test mode: skip authentication
+      creditsRemaining = 999;
     } else {
-      // Anonymous: 5 free AI-powered analyses
-      const used = anonymousUsage.get(ip) || 0;
-      if (used >= ANONYMOUS_FREE_LIMIT) {
-        return NextResponse.json(
-          { error: "Free analysis limit reached. Sign up for 50 free credits.", creditsRemaining: 0 },
-          { status: 402 }
-        );
-      }
-      anonymousUsage.set(ip, used + 1);
-      creditsRemaining = ANONYMOUS_FREE_LIMIT - (used + 1);
+      return NextResponse.json(
+        { error: "Please sign up to analyze contracts. You'll get 5 free analyses!", creditsRemaining: 0 },
+        { status: 401 }
+      );
     }
 
     const input: AnalysisInput = {
@@ -176,6 +174,46 @@ export async function POST(request: NextRequest) {
         console.error("[AI Analysis Error]", msg);
         result.aiInsights = `AI analysis failed: ${msg.substring(0, 200)}. Results are from pattern-matching analysis only.`;
       }
+    }
+
+    // Send analysis complete email (non-blocking)
+    const userEmail = session?.user?.email;
+    if (userEmail) {
+      import('@/lib/email').then(({ sendEmail, analysisCompleteEmailHTML }) => {
+        sendEmail(userEmail, "Your contract analysis is ready!",
+          analysisCompleteEmailHTML(userEmail.split('@')[0], result.overallScore, result.recommendation)
+        ).catch(() => {});
+      }).catch(() => {});
+    }
+
+    // Webhook notification (if configured)
+    if (body.webhookUrl) {
+      fetch(body.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'analysis_complete',
+          score: result.overallScore,
+          recommendation: result.recommendation,
+          redFlags: result.redFlags.length,
+          greenFlags: result.greenFlags.length,
+          missingClauses: result.missingClauses.length,
+          contractType: result.contractType,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    }
+
+    // Slack notification (if configured)
+    if (body.slackWebhookUrl) {
+      const emoji = result.recommendation === 'sign' ? '\u2705' : result.recommendation === 'negotiate' ? '\u26A0\uFE0F' : '\uD83D\uDEAB';
+      fetch(body.slackWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: `${emoji} Contract analyzed: Score ${result.overallScore}/100 (${result.recommendation.replace('_', ' ')}). ${result.redFlags.length} red flags, ${result.greenFlags.length} green flags.`,
+        }),
+      }).catch(() => {});
     }
 
     return NextResponse.json({ ...result, creditsRemaining }, { status: 200 });

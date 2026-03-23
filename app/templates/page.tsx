@@ -9,7 +9,6 @@ import {
   Copy,
   Check,
   ArrowRight,
-  ArrowLeft,
   Search,
   Code,
   Palette,
@@ -1016,25 +1015,18 @@ export default function TemplatesPage() {
 
   return (
     <ProtectedRoute>
-    <div className="min-h-screen bg-white">
+    <div className="h-dvh overflow-hidden flex flex-col bg-white">
       <Nav />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-6 py-8 flex-1 overflow-y-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link
-            href="/"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Home
-          </Link>
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
               Contract Templates
             </h1>
             <p className="mt-2 max-w-2xl text-base text-gray-500">
@@ -1102,7 +1094,7 @@ export default function TemplatesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.4, delay: i * 0.05 }}
-                    className="group flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md"
+                    className="group flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-md transition-all hover:border-indigo-200 hover:shadow-lg hover:-translate-y-0.5 duration-200"
                   >
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">

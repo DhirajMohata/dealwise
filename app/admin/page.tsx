@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Nav from '@/components/Nav';
+import BlogTab from '@/components/admin/BlogTab';
 import {
   Users,
   Zap,
@@ -83,7 +84,7 @@ interface AdminSettings {
   };
 }
 
-type TabId = 'overview' | 'users' | 'credits' | 'analytics' | 'settings' | 'system' | 'messages' | 'reports' | 'reviews';
+type TabId = 'overview' | 'users' | 'credits' | 'analytics' | 'settings' | 'system' | 'messages' | 'reports' | 'reviews' | 'blog';
 
 interface ContactMessage {
   id: string;
@@ -126,6 +127,7 @@ const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'messages', label: 'Messages', icon: MessageSquare },
   { id: 'reports', label: 'Reports', icon: Bug },
   { id: 'reviews', label: 'Reviews', icon: Star },
+  { id: 'blog', label: 'Blog', icon: FileText },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'system', label: 'System', icon: Server },
 ];
@@ -587,7 +589,7 @@ export default function AdminPage() {
   return (
     <ProtectedRoute>
       <Nav />
-      <div className="flex min-h-screen bg-white">
+      <div className="flex h-[calc(100dvh-3.5rem)] overflow-hidden bg-white">
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
@@ -650,7 +652,7 @@ export default function AdminPage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 flex flex-col overflow-hidden">
           {/* Top bar */}
           <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
             <div className="flex items-center gap-3">
@@ -660,7 +662,7 @@ export default function AdminPage() {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <h1 className="text-sm font-semibold text-gray-900">
+              <h1 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
                 {NAV_ITEMS.find(n => n.id === activeTab)?.label}
               </h1>
             </div>
@@ -692,7 +694,7 @@ export default function AdminPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="p-4 lg:p-6">
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
             {activeTab === 'overview' && renderOverview()}
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'credits' && renderCredits()}
@@ -700,6 +702,7 @@ export default function AdminPage() {
             {activeTab === 'messages' && renderMessages()}
             {activeTab === 'reports' && renderReports()}
             {activeTab === 'reviews' && renderReviews()}
+            {activeTab === 'blog' && <BlogTab />}
             {activeTab === 'settings' && renderSettings()}
             {activeTab === 'system' && renderSystem()}
           </div>
@@ -754,7 +757,7 @@ export default function AdminPage() {
         {/* Row 2 */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* User breakdown */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">User Breakdown</h3>
             <div className="space-y-3">
               {[
@@ -785,7 +788,7 @@ export default function AdminPage() {
           </div>
 
           {/* Recent signups */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">Recent Signups</h3>
             {stats?.recentSignups && stats.recentSignups.length > 0 ? (
               <div className="space-y-3">
@@ -2059,7 +2062,7 @@ function StatCard({
     orange: 'bg-orange-50 text-orange-600',
   };
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-md">
       <div className="flex items-center gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${colors[color]}`}>
           <Icon className="h-5 w-5" />

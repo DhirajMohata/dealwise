@@ -11,13 +11,34 @@ export interface ContractMetadata {
 export function extractMetadataFromText(text: string): ContractMetadata {
   const result: ContractMetadata = {};
 
-  // Detect currency
-  if (/\u20b9|Rs\.?|rupee|INR/i.test(text)) result.detectedCurrency = 'INR';
-  else if (/\u00a3|GBP|pound/i.test(text)) result.detectedCurrency = 'GBP';
-  else if (/\u20ac|EUR|euro/i.test(text)) result.detectedCurrency = 'EUR';
-  else if (/A\$|AUD/i.test(text)) result.detectedCurrency = 'AUD';
-  else if (/C\$|CAD/i.test(text)) result.detectedCurrency = 'CAD';
-  else if (/\$|USD|dollar/i.test(text)) result.detectedCurrency = 'USD';
+  // Detect currency — check payment-specific context first, then fall back to symbol detection.
+  // Look for explicit payment currency declarations first (e.g., "Payment Currency: USD")
+  const paymentCurrencyMatch = text.match(/(?:payment\s*currency|paid\s+in|payable\s+in|denominated\s+in)[\s:]*(\w+)/i);
+  if (paymentCurrencyMatch) {
+    const pc = paymentCurrencyMatch[1].toUpperCase();
+    if (pc === 'USD' || pc === 'US') result.detectedCurrency = 'USD';
+    else if (pc === 'INR') result.detectedCurrency = 'INR';
+    else if (pc === 'GBP') result.detectedCurrency = 'GBP';
+    else if (pc === 'EUR') result.detectedCurrency = 'EUR';
+    else if (pc === 'AUD') result.detectedCurrency = 'AUD';
+    else if (pc === 'CAD') result.detectedCurrency = 'CAD';
+  }
+
+  // If no explicit declaration, detect from price symbols ($ before ₹ since $ is more specific to payments)
+  if (!result.detectedCurrency) {
+    // Check for dollar amounts in payment context (e.g., "$40.00 per hour", "$25.00")
+    if (/\$\s*\d|USD\s*\d|\d+\.\d{2}\s*(?:USD|US\s*Dollar)/i.test(text)) result.detectedCurrency = 'USD';
+    else if (/\u00a3\s*\d|GBP\s*\d/i.test(text)) result.detectedCurrency = 'GBP';
+    else if (/\u20ac\s*\d|EUR\s*\d/i.test(text)) result.detectedCurrency = 'EUR';
+    else if (/\u20b9\s*\d|Rs\.?\s*\d/i.test(text)) result.detectedCurrency = 'INR';
+    else if (/A\$\s*\d|AUD\s*\d/i.test(text)) result.detectedCurrency = 'AUD';
+    else if (/C\$\s*\d|CAD\s*\d/i.test(text)) result.detectedCurrency = 'CAD';
+    // Broader fallback — just symbol presence
+    else if (/\$|USD|dollar/i.test(text)) result.detectedCurrency = 'USD';
+    else if (/\u20b9|INR|rupee/i.test(text)) result.detectedCurrency = 'INR';
+    else if (/\u00a3|GBP|pound/i.test(text)) result.detectedCurrency = 'GBP';
+    else if (/\u20ac|EUR|euro/i.test(text)) result.detectedCurrency = 'EUR';
+  }
 
   // Detect price — look for the LARGEST monetary amount (usually the total)
   const pricePatterns = [

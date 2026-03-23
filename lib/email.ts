@@ -30,6 +30,18 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
 }
 
+export function verificationEmailHTML(name: string, verifyUrl: string): string {
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+      <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin-bottom: 16px;">Verify your email</h1>
+      <p style="font-size: 15px; color: #4B5563; line-height: 1.6; margin-bottom: 24px;">Hi ${name}, thanks for signing up for dealwise! Please verify your email address by clicking the button below.</p>
+      <a href="${verifyUrl}" style="display: inline-block; background: #4F46E5; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">Verify Email</a>
+      <p style="font-size: 13px; color: #9CA3AF; margin-top: 24px;">If you didn't create an account, you can safely ignore this email.</p>
+      <p style="font-size: 13px; color: #9CA3AF; margin-top: 8px;">This link expires in 24 hours.</p>
+    </div>
+  `;
+}
+
 export function welcomeEmailHTML(name: string): string {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
@@ -39,7 +51,7 @@ export function welcomeEmailHTML(name: string): string {
       </div>
       <h2 style="font-size: 20px; color: #111827;">Welcome, ${name}!</h2>
       <p style="font-size: 15px; color: #4B5563; line-height: 1.6;">
-        Thanks for joining dealwise. You have <strong>50 free credits</strong> to analyze your freelance contracts.
+        Thanks for joining dealwise. You have <strong>5 free credits</strong> to analyze your freelance contracts.
       </p>
       <p style="font-size: 15px; color: #4B5563; line-height: 1.6;">
         Upload any contract and we'll tell you your real effective hourly rate — what you're actually getting paid after the fine print.

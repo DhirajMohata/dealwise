@@ -14,12 +14,17 @@ import {
   Eye,
   EyeOff,
   CreditCard,
+  Users,
+  UserPlus,
+  X,
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { getSettings, saveSettings, type Settings } from '@/lib/settings';
 import { clearHistory } from '@/lib/auth';
 import Nav from '@/components/Nav';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useCredits } from '@/components/CreditsProvider';
 import { CURRENCIES, COUNTRIES } from '@/lib/constants';
 
 const fadeUp = {
@@ -32,12 +37,6 @@ const stagger = {
   show: { transition: { staggerChildren: 0.06 } },
 };
 
-interface CreditData {
-  credits: number;
-  totalUsed: number;
-  plan: 'free' | 'pro' | 'admin';
-}
-
 const CREDIT_COSTS_TABLE = [
   { action: 'Contract Analysis', cost: '1 credit' },
   { action: 'AI-Enhanced Analysis', cost: '2 credits' },
@@ -48,20 +47,120 @@ const CREDIT_COSTS_TABLE = [
 ];
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
-  const [creditData, setCreditData] = useState<CreditData | null>(null);
+  const [totalUsed, setTotalUsed] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const { credits, plan, loading: creditsLoading } = useCredits();
+
+  // Team state
+  const [teamName, setTeamName] = useState('');
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string; owner_email: string } | null>(null);
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; email: string; role: string; accepted: boolean }>>([]);
+  const [userTeamRole, setUserTeamRole] = useState<string>('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [teamMessage, setTeamMessage] = useState('');
+
+  async function loadTeams() {
+    try {
+      const res = await fetch('/api/teams');
+      if (!res.ok) return;
+      const data = await res.json();
+      // Pick the first team (owned or membership)
+      const owned = data.ownedTeams?.[0];
+      const membership = data.memberships?.[0];
+      const team = owned || membership?.teams;
+      if (team) {
+        setCurrentTeam(team);
+        loadMembers(team.id);
+      }
+    } catch {}
+  }
+
+  async function loadMembers(teamId: string) {
+    try {
+      const res = await fetch(`/api/teams/members?teamId=${teamId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTeamMembers(data.members || []);
+      setUserTeamRole(data.userRole || '');
+    } catch {}
+  }
+
+  async function handleCreateTeam() {
+    if (!teamName.trim()) return;
+    setTeamLoading(true);
+    setTeamMessage('');
+    try {
+      const res = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: teamName.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentTeam(data.team);
+        setTeamName('');
+        loadMembers(data.team.id);
+        setTeamMessage('Team created!');
+      } else {
+        setTeamMessage('Failed to create team.');
+      }
+    } catch {
+      setTeamMessage('Failed to create team.');
+    }
+    setTeamLoading(false);
+  }
+
+  async function handleInviteMember() {
+    if (!inviteEmail.trim() || !currentTeam) return;
+    setTeamLoading(true);
+    setTeamMessage('');
+    try {
+      const res = await fetch('/api/teams/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: currentTeam.id, email: inviteEmail.trim() }),
+      });
+      if (res.ok) {
+        setInviteEmail('');
+        loadMembers(currentTeam.id);
+        setTeamMessage('Invitation sent!');
+      } else {
+        const err = await res.json();
+        setTeamMessage(err.error || 'Failed to invite.');
+      }
+    } catch {
+      setTeamMessage('Failed to invite member.');
+    }
+    setTeamLoading(false);
+  }
+
+  async function handleRemoveMember(email: string) {
+    if (!currentTeam) return;
+    try {
+      await fetch('/api/teams/members', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: currentTeam.id, email }),
+      });
+      loadMembers(currentTeam.id);
+    } catch {}
+  }
 
   useEffect(() => {
     setSettings(getSettings());
+    // Fetch totalUsed separately (not provided by useCredits)
     fetch('/api/credits')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data) setCreditData({ credits: data.credits, totalUsed: data.totalUsed, plan: data.plan });
+        if (data) setTotalUsed(data.totalUsed);
       })
       .catch(() => {});
+    loadTeams();
   }, []);
 
   function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -81,16 +180,16 @@ export default function SettingsPage() {
 
   function handleClearHistoryConfirm() {
     setShowClearConfirm(false);
-    clearHistory();
+    clearHistory(session?.user?.email ?? undefined);
   }
 
   if (!settings) return null;
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
       <Nav />
-      <div className="relative mx-auto max-w-2xl px-6 py-20">
+      <div className="relative mx-auto max-w-4xl px-6 py-10">
 
         <motion.div
           variants={stagger}
@@ -99,12 +198,12 @@ export default function SettingsPage() {
           className="space-y-8"
         >
           <motion.div variants={fadeUp}>
-            <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+            <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>Settings</h1>
             <p className="mt-2 text-gray-600">Customize your DEALWISE experience.</p>
           </motion.div>
 
           {/* -- AI API Key -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
               <Key className="h-5 w-5 text-indigo-500" />
               <h2 className="text-sm font-semibold text-gray-900">AI API Key</h2>
@@ -149,27 +248,27 @@ export default function SettingsPage() {
           </motion.section>
 
           {/* -- Credits -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
               <CreditCard className="h-5 w-5 text-indigo-500" />
               <h2 className="text-sm font-semibold text-gray-900">Credits</h2>
             </div>
-            {creditData ? (
+            {credits !== null ? (
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="rounded-lg border border-gray-200 bg-white p-4">
                     <p className="text-xs font-medium text-gray-400">Current Balance</p>
                     <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {creditData.plan === 'admin' ? 'Unlimited' : creditData.credits}
+                      {plan === 'admin' ? 'Unlimited' : credits}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-4">
                     <p className="text-xs font-medium text-gray-400">Total Used</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">{creditData.totalUsed}</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{totalUsed ?? '...'}</p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-4">
                     <p className="text-xs font-medium text-gray-400">Plan</p>
-                    <p className="mt-1 text-2xl font-bold capitalize text-gray-900">{creditData.plan}</p>
+                    <p className="mt-1 text-2xl font-bold capitalize text-gray-900">{plan}</p>
                   </div>
                 </div>
 
@@ -194,8 +293,56 @@ export default function SettingsPage() {
             )}
           </motion.section>
 
+          {/* -- Billing & Plan -- */}
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
+            <div className="mb-4 flex items-center gap-3">
+              <CreditCard className="h-5 w-5 text-indigo-500" />
+              <h2 className="text-sm font-semibold text-gray-900">Billing &amp; Plan</h2>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-medium text-gray-400">Current Plan</p>
+                <div className="mt-1">
+                  {plan === 'free' && (
+                    <span className="inline-block rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">Free Plan</span>
+                  )}
+                  {plan === 'pro' && (
+                    <span className="inline-block rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">Pro Plan</span>
+                  )}
+                  {plan === 'admin' && (
+                    <span className="inline-block rounded-md bg-purple-50 px-2.5 py-0.5 text-xs font-medium text-purple-700">Admin</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-400">Credits</p>
+                <p className="mt-1 text-sm text-gray-900">
+                  {plan === 'admin' ? 'Unlimited' : credits !== null ? credits : '...'} credits remaining
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">
+                  {plan === 'free' && 'Your free plan includes 5 analyses. Upgrade for unlimited access.'}
+                  {plan === 'pro' && "You're on a paid plan with monthly analyses."}
+                  {plan === 'admin' && 'Unlimited access.'}
+                </p>
+              </div>
+              {plan === 'free' && (
+                <Link href="/pricing" className="inline-block text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-700">
+                  Upgrade to Pro &rarr;
+                </Link>
+              )}
+              {plan === 'pro' && (
+                <Link href="/pricing" className="inline-block text-sm font-medium text-gray-500 transition-colors hover:text-gray-700">
+                  Manage Plan &rarr;
+                </Link>
+              )}
+              <p className="text-xs text-gray-400">Billing history will be available once payments launch.</p>
+            </div>
+          </motion.section>
+
           {/* -- Default Currency & Country -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
               <Globe className="h-5 w-5 text-indigo-500" />
               <h2 className="text-sm font-semibold text-gray-900">Defaults</h2>
@@ -239,7 +386,7 @@ export default function SettingsPage() {
           </motion.section>
 
           {/* -- Analysis Preferences -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
               <Sparkles className="h-5 w-5 text-indigo-500" />
               <h2 className="text-sm font-semibold text-gray-900">Analysis Preferences</h2>
@@ -278,8 +425,173 @@ export default function SettingsPage() {
             </div>
           </motion.section>
 
+          {/* -- Team -- */}
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
+            <div className="mb-4 flex items-center gap-3">
+              <Users className="h-5 w-5 text-indigo-500" />
+              <h2 className="text-sm font-semibold text-gray-900">Team</h2>
+            </div>
+
+            {!currentTeam ? (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-600">Create a team to collaborate on contract analyses.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="Team name"
+                    className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                  <button
+                    onClick={handleCreateTeam}
+                    disabled={teamLoading || !teamName.trim()}
+                    className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Create Team
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400">Team Name</p>
+                  <p className="mt-0.5 text-sm font-semibold text-gray-900">{currentTeam.name}</p>
+                </div>
+
+                {/* Invite form — only for owner/admin */}
+                {['owner', 'admin'].includes(userTeamRole) && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                      <UserPlus className="mr-1 inline h-3 w-3" />
+                      Invite Member
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="member@example.com"
+                        className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      <button
+                        onClick={handleInviteMember}
+                        disabled={teamLoading || !inviteEmail.trim()}
+                        className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Invite
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Members list */}
+                <div>
+                  <p className="mb-2 text-xs font-medium text-gray-600">Members</p>
+                  <div className="rounded-lg border border-gray-200 divide-y divide-gray-200 overflow-hidden">
+                    {teamMembers.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-400">No members yet</div>
+                    ) : (
+                      teamMembers.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-900">{member.email}</span>
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              member.role === 'owner' ? 'bg-purple-50 text-purple-700' :
+                              member.role === 'admin' ? 'bg-indigo-50 text-indigo-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {member.role}
+                            </span>
+                            {!member.accepted && (
+                              <span className="inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                pending
+                              </span>
+                            )}
+                          </div>
+                          {['owner', 'admin'].includes(userTeamRole) && member.role !== 'owner' && (
+                            <button
+                              onClick={() => handleRemoveMember(member.email)}
+                              className="rounded-md p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                              title="Remove member"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {teamMessage && (
+              <p className="mt-3 text-xs font-medium text-indigo-600">{teamMessage}</p>
+            )}
+          </motion.section>
+
+          {/* -- Integrations -- */}
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
+            <div className="mb-4 flex items-center gap-3">
+              <Globe className="h-5 w-5 text-indigo-500" />
+              <h2 className="text-sm font-semibold text-gray-900">Integrations</h2>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                  Webhook URL
+                </label>
+                <input
+                  type="url"
+                  value={settings.webhookUrl || ''}
+                  onChange={(e) => updateSetting('webhookUrl', e.target.value)}
+                  placeholder="https://your-server.com/webhook"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">
+                  Receive a POST request with analysis results after each contract analysis.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                  Slack Webhook URL
+                </label>
+                <input
+                  type="url"
+                  value={settings.slackWebhookUrl || ''}
+                  onChange={(e) => updateSetting('slackWebhookUrl', e.target.value)}
+                  placeholder="https://hooks.slack.com/services/..."
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">
+                  Get Slack notifications when a contract analysis completes.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  saveSettings({
+                    webhookUrl: settings.webhookUrl,
+                    slackWebhookUrl: settings.slackWebhookUrl,
+                  });
+                  setKeySaved(true);
+                  setTimeout(() => setKeySaved(false), 2000);
+                }}
+                className="rounded-xl bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
+              >
+                {keySaved ? (
+                  <span className="flex items-center gap-1">
+                    <Check className="h-4 w-4" /> Saved
+                  </span>
+                ) : (
+                  'Save'
+                )}
+              </button>
+            </div>
+          </motion.section>
+
           {/* -- Data -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
               <Trash2 className="h-5 w-5 text-red-500" />
               <h2 className="text-sm font-semibold text-gray-900">Data</h2>
@@ -296,7 +608,7 @@ export default function SettingsPage() {
           </motion.section>
 
           {/* -- About -- */}
-          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <motion.section variants={fadeUp} className="rounded-xl border border-gray-200 bg-white p-6 shadow-md">
             <div className="mb-4 flex items-center gap-3">
               <Info className="h-5 w-5 text-indigo-500" />
               <h2 className="text-sm font-semibold text-gray-900">About</h2>
