@@ -57,17 +57,17 @@ export interface HistoryEntry {
 }
 
 /**
- * Generate a simple hash fingerprint of contract text for version matching.
- * Same contract text = same hash. Different contract = different hash.
+ * Generate a SHA-256 fingerprint of the FULL contract text for version matching.
+ * Same contract text = same hash. Even a one-character change = completely different hash.
+ * Uses Web Crypto API (available in browser, Node.js 18+, and Vercel Edge Runtime).
  */
-export function contractHash(text: string): string {
+export async function contractHash(text: string): Promise<string> {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  let hash = 0;
-  const sample = normalized.slice(0, 500);
-  for (let i = 0; i < sample.length; i++) {
-    hash = ((hash << 5) - hash + sample.charCodeAt(i)) | 0;
-  }
-  return `${hash.toString(36)}_${normalized.length}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(normalized);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 function getHistoryKey(email?: string): string {

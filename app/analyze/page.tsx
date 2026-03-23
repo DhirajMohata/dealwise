@@ -198,19 +198,20 @@ export default function AnalyzePage() {
     const currentText = contractText || ((result as unknown as Record<string, unknown>).contractText as string) || '';
     if (!currentText) { setVersions([]); return; }
 
-    const hash = contractHash(currentText);
-
-    fetch(`/api/history?hash=${encodeURIComponent(hash)}`)
-      .then(r => r.ok ? r.json() : { versions: [] })
-      .then(data => {
-        setVersions((data.versions || []).map((v: { id: string; overall_score: number; recommendation: string; created_at: string }) => ({
-          id: v.id,
-          score: v.overall_score,
-          rec: v.recommendation,
-          date: v.created_at,
-        })));
-      })
-      .catch(() => setVersions([]));
+    (async () => {
+      const hash = await contractHash(currentText);
+      fetch(`/api/history?hash=${encodeURIComponent(hash)}`)
+        .then(r => r.ok ? r.json() : { versions: [] })
+        .then(data => {
+          setVersions((data.versions || []).map((v: { id: string; overall_score: number; recommendation: string; created_at: string }) => ({
+            id: v.id,
+            score: v.overall_score,
+            rec: v.recommendation,
+            date: v.created_at,
+          })));
+        })
+        .catch(() => setVersions([]));
+    })();
   }, [result, contractText]);
 
   /* ---------- keyboard shortcut: Cmd/Ctrl + Enter to submit (FIX 5) ---------- */
@@ -362,10 +363,11 @@ Both parties agree to maintain confidentiality of proprietary information shared
         effectiveHourlyRate: data.effectiveHourlyRate,
         rateReduction: data.rateReduction,
         fullResult: JSON.stringify({ ...data, contractText: text }),
-        contractHash: contractHash(text),
+        contractHash: await contractHash(text),
       }, session?.user?.email ?? undefined);
 
       // Save to server if authenticated
+      const serverHash = await contractHash(text);
       fetch('/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -380,7 +382,7 @@ Both parties agree to maintain confidentiality of proprietary information shared
           currency,
           contractType: data.contractType,
           fullResult: JSON.stringify({ ...data, contractText: text }),
-          contractHash: contractHash(text),
+          contractHash: serverHash,
         }),
       }).catch(() => {}); // Don't block on server save failure
 
