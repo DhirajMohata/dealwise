@@ -1,14 +1,8 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
-import crypto from "crypto"
 import bcrypt from "bcryptjs"
 import { supabase } from "@/lib/supabase"
-import { sendEmail, welcomeEmailHTML, verificationEmailHTML } from "@/lib/email"
-
-function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 12);
-}
 
 // Brute force protection
 const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
@@ -41,64 +35,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
-        name: { label: "Name", type: "text" },
-        action: { label: "Action", type: "text" },
       },
       async authorize(credentials) {
         const email = credentials?.email as string
         const password = credentials?.password as string
-        const name = credentials?.name as string
-        const action = credentials?.action as string
 
         if (!email || !password) return null
         if (!checkLoginAllowed(email)) return null
-        if (password.length < 8) return null
 
-        // Password complexity: require uppercase, lowercase, and number
-        if (action === 'signup') {
-          const hasUpper = /[A-Z]/.test(password);
-          const hasLower = /[a-z]/.test(password);
-          const hasNumber = /[0-9]/.test(password);
-          if (!hasUpper || !hasLower || !hasNumber) return null;
-        }
-
-        if (action === "signup") {
-          const { data: existing } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', email)
-            .single();
-
-          if (existing) {
-            return null
-          }
-
-          const hashedPassword = hashPassword(password)
-          const newUser = {
-            id: crypto.randomUUID(),
-            name: name || email.split("@")[0],
-            email,
-            password: hashedPassword,
-          }
-
-          const { error } = await supabase.from('users').insert(newUser);
-          if (error) {
-            return null
-          }
-
-          // Generate verification token
-          const verificationToken = crypto.randomUUID();
-          await supabase.from('users').update({ verification_token: verificationToken }).eq('email', email);
-
-          // Send verification email instead of welcome email
-          const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-          const verifyUrl = `${baseUrl}/auth/verify?token=${verificationToken}`;
-          sendEmail(email, "Verify your email - dealwise", verificationEmailHTML(name || email.split("@")[0], verifyUrl)).catch(() => {});
-
-          return { id: newUser.id, name: newUser.name, email: newUser.email }
-        }
-
-        // Login
+        // Login only — signup is handled by /api/auth/signup
         const { data: user } = await supabase
           .from('users')
           .select('*')
@@ -110,9 +55,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        if (user && !user.email_verified) {
-          return null; // Email not verified — user can't log in
+        if (!user.email_verified) {
+          return null // Email not verified — must verify first
         }
+
         clearLoginAttempts(email);
         return { id: user.id, name: user.name, email: user.email }
       },

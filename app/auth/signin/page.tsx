@@ -18,30 +18,52 @@ function SignInForm() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      name: tab === "signup" ? name : undefined,
-      action: tab === "signup" ? "signup" : "login",
-      redirect: false,
-    });
+    if (tab === "signup") {
+      // Signup: call dedicated API (does NOT create session)
+      try {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
+        });
+        const data = await res.json();
 
-    if (result?.error) {
-      setError(result.error === "CredentialsSignin"
-        ? (tab === "signup"
-          ? "Signup failed. Password must have 8+ chars, 1 uppercase, 1 lowercase, 1 number. Or email may already be registered."
-          : "Invalid email or password, or email not yet verified.")
-        : result.error);
+        if (!res.ok) {
+          setError(data.error || "Signup failed. Please try again.");
+        } else {
+          setSuccess("Account created! Check your email to verify, then sign in.");
+          setTab("signin");
+          setPassword("");
+        }
+      } catch {
+        setError("Signup failed. Please try again.");
+      }
       setLoading(false);
     } else {
-      router.push(callbackUrl);
+      // Login: use NextAuth
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(result.error === "CredentialsSignin"
+          ? "Invalid email or password, or email not yet verified."
+          : result.error);
+        setLoading(false);
+      } else {
+        router.push(callbackUrl);
+      }
     }
   }
 
@@ -170,6 +192,9 @@ function SignInForm() {
               )}
             </div>
 
+            {success && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-[13px] text-emerald-700">{success}</div>
+            )}
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-100 px-4 py-3 text-[13px] text-red-600">{error}</div>
             )}
