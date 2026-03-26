@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/security";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+
+// Lazy import pdf-parse to avoid its test file loading at module init
+async function parsePdf(buffer: Buffer): Promise<{ text: string; numpages: number; info: Record<string, unknown> }> {
+  // pdf-parse tries to load a test PDF on require(). Import the actual parser directly.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse = require("pdf-parse/lib/pdf-parse");
+  return pdfParse(buffer);
+}
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for") || "unknown";
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "File is not a valid PDF." }, { status: 400 });
       }
       try {
-        const result = await pdfParse(buffer);
+        const result = await parsePdf(buffer);
         const text = result.text || "";
 
         if (!text.trim()) {
